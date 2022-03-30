@@ -120,11 +120,6 @@ def balancedAccuracy(y_true, y_pred):
     return 0.5 * (truePositiveRate(y_true, y_pred) +
                   trueNegativeRate(y_true, y_pred))
 
-# def prevelanceThreshold(y_true, y_pred):
-#     TPR = truePositiveRate(y_true, y_pred)
-#     TNR = specificity(y_true, y_pred)
-#     return ((TPR * (1 - TNR))**(0.5) + TNR - 1) / (TPR + TNR - 1)
-
 
 def calc_R_sq(true, prediction):
 
