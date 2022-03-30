@@ -7,13 +7,12 @@ from sklearn.model_selection import StratifiedKFold  # pylint: disable=import-er
 import numpy as np  # pylint: disable=import-error
 import metallurgy as mg
 
+import cerebral as cb
 from . import models
 from . import plots
 from . import metrics
 from . import features
 from . import loss
-
-numFolds = 5
 
 
 def kfolds_split(data, numFolds):
@@ -62,14 +61,16 @@ def kfolds_split(data, numFolds):
 
 def kfolds(originalData, save=False, plot=False):
 
+    numFolds = cb.conf.kfolds.get("num_folds", 5)
+
     MADs = {}
     RMSDs = {}
     for feature in cb.conf.targets:
         if feature.type == 'numerical':
             MADs[feature.name] = metrics.meanAbsoluteDeviation(
-                data.filter_masked(originalData[feature.name]))
+                features.filter_masked(originalData[feature.name]))
             RMSDs[feature.name] = metrics.rootMeanSquareDeviation(
-                data.filter_masked(originalData[feature.name]))
+                features.filter_masked(originalData[feature.name]))
 
     MAEs = {}
     RMSEs = {}
@@ -102,7 +103,7 @@ def kfolds(originalData, save=False, plot=False):
         model = models.train_model(train_features, train_labels,
                                    sampleWeight,
                                    test_features=test_features, test_labels=test_labels, sampleWeight_test=sampleWeightTest,
-                                   plot=plot, maxEpochs=1000, model_name=foldIndex)
+                                   plot=plot, maxEpochs=cb.conf.train.get("max_epochs", 100), model_name=foldIndex)
         if save and not plot:
             models.save(
                 model,
@@ -117,23 +118,23 @@ def kfolds(originalData, save=False, plot=False):
         fold_test_predictions.append(test_predictions)
 
         for feature in cb.conf.targets:
-            featureIndex = cb.conf.targets.index(feature.name)
+            featureIndex = cb.conf.target_names.index(feature.name)
             if feature.type == 'numerical':
 
                 test_labels_masked, test_predictions_masked = features.filter_masked(
                     test_labels[feature.name], test_predictions[featureIndex].flatten())
 
-                MAEs[feature.name].append(plots.calc_MAE(
+                MAEs[feature.name].append(metrics.calc_MAE(
                     test_labels_masked, test_predictions_masked))
-                RMSEs[feature.name].append(plots.calc_RMSE(
+                RMSEs[feature.name].append(metrics.calc_RMSE(
                     test_labels_masked, test_predictions_masked))
             else:
-                test_labels_masked, test_predictions_masked = plots.filter_masked(
+                test_labels_masked, test_predictions_masked = features.filter_masked(
                     test_labels[feature.name], test_predictions[featureIndex])
 
-                accuracies[feature.name].append(plots.calc_accuracy(
+                accuracies[feature.name].append(metrics.calc_accuracy(
                     test_labels_masked, test_predictions_masked))
-                f1s[feature.name].append(plots.calc_f1(
+                f1s[feature.name].append(metrics.calc_f1(
                     test_labels_masked, test_predictions_masked))
 
     with open(cb.conf.output_directory + '/validation.dat', 'w') as validationFile:
@@ -142,7 +143,7 @@ def kfolds(originalData, save=False, plot=False):
                 validationFile.write('# ' + feature.name + '\n')
                 validationFile.write('# MAD RMSD\n')
                 validationFile.write(
-                    str(MADs[feature]) + ' ' + str(RMSDs[feature.name]) + '\n')
+                    str(MADs[feature.name]) + ' ' + str(RMSDs[feature.name]) + '\n')
                 validationFile.write('# foldId MAE RMSE\n')
                 for i in range(len(MAEs[feature.name])):
                     validationFile.write(
@@ -171,7 +172,8 @@ def kfolds(originalData, save=False, plot=False):
 
 
 def kfoldsEnsemble(originalData):
-    #kfolds(originalData, save=True, plot=True)
+
+    kfolds(originalData, save=True, plot=True)
 
     compositions = originalData.pop('composition')
 
@@ -180,15 +182,9 @@ def kfoldsEnsemble(originalData):
 
     inputs = models.build_input_layers(train_features)
     outputs = []
-    losses, metrics = loss.setup_losses()
-    # lossWeights = {
-    #     'Tl': 1,
-    #     'Tg': 1,
-    #     'Tx': 1,
-    #     'deltaT': 1,
-    #     'Dmax': 1,
-    #     'GFA': 1
-    # }
+    losses, metrics = models.setup_losses_and_metrics()
+
+    numFolds = cb.conf.kfolds.get("num_folds", 5)
 
     submodel_outputs = []
     for k in range(numFolds):
@@ -237,7 +233,7 @@ def kfoldsEnsemble(originalData):
         metrics=metrics)
 
     model, history = models.fit(
-        model, train_features, train_labels, sampleWeight, maxEpochs=1000)
+        model, train_features, train_labels, sampleWeight, maxEpochs=cb.conf.train.get("max_epochs", 100))
     models.save(model, cb.conf.output_directory + '/model')
 
     plots.plot_training(history)

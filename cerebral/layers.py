@@ -18,16 +18,3 @@ def dense(units, activation, regularizer,
                                  kernel_constraint=tf.keras.constraints.max_norm(
                                      max_norm),
                                  bias_constraint=tf.keras.constraints.max_norm(max_norm))
-
-
-def build_input_layers(train_features):
-    inputs = []
-    for feature in train_features.columns:
-        inputs.append(
-            tf.keras.Input(
-                shape=(1,),
-                name=feature,
-                dtype='float64')
-        )
-
-    return inputs

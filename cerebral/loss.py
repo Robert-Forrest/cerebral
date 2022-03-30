@@ -71,24 +71,3 @@ def negloglik(y_true, y_pred):
     nonzero = tf.math.count_nonzero(mask)
 
     return K.sum(tf.where(mask, log_prob, 0)) / tf.cast(nonzero, 'float64')
-
-
-def setup_losses():
-    losses = {}
-    feature_metrics = {}
-
-    for feature in cb.conf.targets:
-        if feature.type == 'numerical':
-            feature_metrics[feature.name] = [masked_MSE, masked_MAE,
-                                             masked_Huber, masked_PseudoHuber]
-            losses[feature.name] = masked_Huber  # masked_MSE
-        else:
-            feature_metrics[feature.name] = [
-                metrics.accuracy, metrics.truePositiveRate, metrics.trueNegativeRate,
-                metrics.positivePredictiveValue, metrics.negativePredictiveValue,
-                metrics.balancedAccuracy, metrics.f1,
-                metrics.informedness, metrics.markedness
-            ]
-            losses[feature.name] = masked_sparse_categorical_crossentropy
-
-    return losses, feature_metrics

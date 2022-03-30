@@ -22,6 +22,47 @@ os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
 tf.get_logger().setLevel('INFO')
 
 
+def setup_losses_and_metrics():
+    losses = {}
+    feature_metrics = {}
+
+    for feature in cb.conf.targets:
+        if feature.type == 'numerical':
+            feature_metrics[feature.name] = [loss.masked_MSE, loss.masked_MAE,
+                                             loss.masked_Huber, loss.masked_PseudoHuber]
+            if feature.loss == "MSE":
+                losses[feature.name] = loss.masked_MSE
+            elif feature.loss == "MAE":
+                losses[feature.name] = loss.masked_MAE
+            elif feature.loss == "Huber":
+                losses[feature.name] = loss.masked_Huber
+            elif feature.loss == "PseudoHuber":
+                losses[feature.name] = loss.masked_PseudoHuber
+        else:
+            feature_metrics[feature.name] = [
+                metrics.accuracy, metrics.truePositiveRate, metrics.trueNegativeRate,
+                metrics.positivePredictiveValue, metrics.negativePredictiveValue,
+                metrics.balancedAccuracy, metrics.f1,
+                metrics.informedness, metrics.markedness
+            ]
+            losses[feature.name] = loss.masked_sparse_categorical_crossentropy
+
+    return losses, feature_metrics
+
+
+def build_input_layers(train_features):
+    inputs = []
+    for feature in train_features.columns:
+        inputs.append(
+            tf.keras.Input(
+                shape=(1,),
+                name=feature,
+                dtype='float64')
+        )
+
+    return inputs
+
+
 def build_base_model(inputs, num_shared_layers, regularizer, regularizer_rate, max_norm,
                      dropout, activation, units_per_layer):
 
@@ -83,7 +124,7 @@ def build_model(train_features, train_labels, num_shared_layers,
                 regularizer_rate=0.001, dropout=0.3, learning_rate=0.01,
                 ensemble_size=1, activation="elu", max_norm=3):
 
-    inputs = layers.build_input_layers(train_features)
+    inputs = build_input_layers(train_features)
 
     normalized_inputs = []
     for input_layer in inputs:
@@ -108,7 +149,7 @@ def build_model(train_features, train_labels, num_shared_layers,
 
     # baseModel = tf.keras.layers.LayerNormalization()(baseModel)
 
-    losses, metrics = loss.setup_losses()
+    losses, metrics = setup_losses_and_metrics()
     outputs = []
     normalized_outputs = []
 
@@ -159,7 +200,7 @@ def load(path):
         'positivePredictiveValue': metrics.positivePredictiveValue,
         'negativePredictiveValue': metrics.negativePredictiveValue,
         'balancedAccuracy': metrics.balancedAccuracy,
-        'f1_score': metrics.f1,
+        'f1': metrics.f1,
         'informedness': metrics.informedness,
         'markedness': metrics.markedness,
         'masked_MSE': loss.masked_MSE,
