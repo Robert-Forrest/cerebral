@@ -7,11 +7,15 @@ from . import io
 from . import features
 from . import models
 from . import metrics
+from . import kfolds
 
-conf = OmegaConf.load('config.yaml')
+conf = None
 
 
-def setup():
+def setup(config="config.yaml"):
+    global conf
+
+    conf = OmegaConf.load(config)
 
     if not os.path.exists('output'):
         os.makedirs('output')
