@@ -22,11 +22,11 @@ def permutation():
 
     permutationImportance = {}
     for permutedFeature in ['none'] + list(originalData.columns):
-        if permutedFeature not in features.predictableFeatures and permutedFeature != 'composition':
+        if permutedFeature not in cb.conf.target_names and permutedFeature != 'composition':
 
             permutationImportance[permutedFeature] = {}
-            for feature in features.predictableFeatures:
-                permutationImportance[permutedFeature][feature] = []
+            for feature in cb.conf.targets:
+                permutationImportance[permutedFeature][feature.name] = []
 
             for k in range(numPermutations):
 
@@ -41,9 +41,9 @@ def permutation():
                 predictions = models.evaluate_model(
                     model, train_ds, labels, plot=False)
 
-                for feature in features.predictableFeatures:
-                    featureIndex = features.predictableFeatures.index(feature)
-                    if feature != 'GFA':
+                for feature in cb.conf.targets:
+                    featureIndex = cb.conf.targets.index(feature.name)
+                    if feature.type == 'numerical':
 
                         labels_masked, predictions_masked = features.filter_masked(
                             labels[feature], predictions[featureIndex].flatten())
@@ -58,28 +58,29 @@ def permutation():
 
                         permutationImportance[permutedFeature][feature].append(metrics.calc_accuracy(
                             labels_masked, predictions_masked))
+
                 if permutedFeature == 'none':
-                    for feature in features.predictableFeatures:
-                        permutationImportance[permutedFeature][feature] = permutationImportance[permutedFeature][feature][0]
+                    for feature in cb.conf.targets:
+                        permutationImportance[permutedFeature][feature.name] = permutationImportance[permutedFeature][feature.name][0]
                     break
 
             if permutedFeature != 'none':
-                for feature in features.predictableFeatures:
+                for feature in cb.conf.targets:
                     averageScore = 0
                     for i in range(numPermutations):
-                        averageScore += permutationImportance[permutedFeature][feature][i]
+                        averageScore += permutationImportance[permutedFeature][feature.name][i]
                     averageScore /= numPermutations
                     if feature != 'GFA':
-                        permutationImportance[permutedFeature][feature] = max(0, averageScore -
-                                                                              permutationImportance['none'][feature])
+                        permutationImportance[permutedFeature][feature.name] = max(0, averageScore -
+                                                                                   permutationImportance['none'][feature.name])
                     else:
-                        permutationImportance[permutedFeature][feature] = max(
-                            0, permutationImportance['none'][feature] - averageScore)
+                        permutationImportance[permutedFeature][feature.name] = max(
+                            0, permutationImportance['none'][feature.name] - averageScore)
 
             with open(cb.conf.output_directory + '/permutedFeatures.dat', 'a') as resultsFile:
-                for feature in features.predictableFeatures:
-                    resultsFile.write(permutedFeature + ' ' + feature + ' ' +
-                                      " " + str(permutationImportance[permutedFeature][feature]) + '\n')
+                for feature in cb.conf.targets:
+                    resultsFile.write(permutedFeature + ' ' + feature.name + ' ' +
+                                      " " + str(permutationImportance[permutedFeature][feature.name]) + '\n')
 
     del permutationImportance['none']
     plots.plot_feature_permutation(permutationImportance)

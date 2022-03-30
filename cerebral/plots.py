@@ -57,8 +57,8 @@ def plot_training(history, model_name=None):
             if "GFA_" in metric and "_loss" not in metric:
                 plt.ylim(0, 1)
 
-            if len(features.predictableFeatures) == 1:
-                metric = features.predictableFeatures[0] + "_" + metric
+            if len(cb.conf.targets) == 1:
+                metric = cb.conf.targets[0].name + "_" + metric
 
             plt.ylabel(metric)
 
@@ -266,8 +266,7 @@ def plot_results_regression(train_labels, train_predictions,
             plt.close()
 
             train_error = list(tmp_train_predictions - tmp_train_labels)
-            print(train_error)
-            print(feature)
+
             if test_labels is not None:
                 plt.hist(train_error, label="Train", density=True, bins=40)
                 plt.hist(test_error, label="Test", density=True, bins=40)
@@ -584,27 +583,25 @@ def plot_binary(elements, model, onlyPredictions=False, originalData=None, inspe
 
     all_features = pd.DataFrame(compositions, columns=['composition'])
     all_features = features.calculate_features(all_features,
-                                               calculate_extra_features=True,
-                                               use_composition_vector=False,
                                                dropCorrelatedFeatures=False,
                                                plot=False,
                                                requiredFeatures=requiredFeatures,
                                                additionalFeatures=additionalFeatures)
     all_features = all_features.drop('composition', axis='columns')
     all_features = all_features.fillna(cb.features.maskValue)
-    for feature in features.predictableFeatures:
-        all_features[feature] = cb.features.maskValue
+    for feature in cb.conf.targets:
+        all_features[feature.name] = cb.features.maskValue
     all_features['GFA'] = all_features['GFA'].astype('int64')
     all_features['percentage'] = percentages
     GFA_predictions = []
 
     prediction_ds = features.df_to_dataset(all_features)
     predictions = model.predict(prediction_ds)
-    for i in range(len(features.predictableFeatures)):
-        if features.predictableFeatures[i] == 'GFA':
+    for i in range(len(cb.conf.targets)):
+        if cb.conf.targets[i] == 'GFA':
             GFA_predictions = predictions[i]
         else:
-            all_features[features.predictableFeatures[i]] = predictions[i]
+            all_features[cb.conf.targets[i]] = predictions[i]
 
     for inspect_feature in inspect_features:
         if inspect_feature not in all_features.columns:
@@ -619,9 +616,9 @@ def plot_binary(elements, model, onlyPredictions=False, originalData=None, inspe
         for feature in all_features.columns:
             trueFeatureName = feature.split(
                 '_linearMix')[0].split('_discrepancy')[0]
-            if (onlyPredictions and feature not in features.predictableFeatures and trueFeatureName not in additionalFeatures) or inspect_feature == feature:
+            if (onlyPredictions and feature not in cb.conf.targets and trueFeatureName not in additionalFeatures) or inspect_feature == feature:
                 continue
-            if feature not in features.predictableFeatures and os.path.exists(
+            if feature not in cb.conf.targets and os.path.exists(
                     binary_dir + "/"+inspect_feature + "/" + feature + ".png"):
                 continue
 
@@ -715,7 +712,7 @@ def plot_binary(elements, model, onlyPredictions=False, originalData=None, inspe
 
             plt.tight_layout()
 
-            if feature in features.predictableFeatures:
+            if feature in cb.conf.targets:
                 plt.savefig(binary_dir+'/'+inspect_feature +
                             "/predictions/" + feature + ".png")
             else:
@@ -756,7 +753,7 @@ def plot_quaternary(elements, model, onlyPredictions=False, originalData=None, a
     for feature in all_features.columns:
         trueFeatureName = feature.split(
             '_linearMix')[0].split('_discrepancy')[0]
-        if onlyPredictions and feature not in features.predictableFeatures and trueFeatureName not in additionalFeatures:
+        if onlyPredictions and feature not in cb.conf.targets and trueFeatureName not in additionalFeatures:
             continue
         if feature not in heatmaps:
             if feature != 'GFA':
@@ -897,7 +894,7 @@ def plot_quaternary(elements, model, onlyPredictions=False, originalData=None, a
             cax=cax)
         cb.set_label(label, labelpad=20, rotation=270)
 
-        if feature in features.predictableFeatures or "GFA_" in feature:
+        if feature in cb.conf.targets or "GFA_" in feature:
             fig.savefig(quaternary_dir + '/predictions/' +
                         feature + ".png", bbox_inches='tight')
         else:
@@ -944,24 +941,22 @@ def generate_ternary_compositions(
     all_features = features.calculate_features(all_features,
                                                dropCorrelatedFeatures=False,
                                                plot=False,
-                                               use_composition_vector=False,
-                                               calculate_extra_features=True,
                                                additionalFeatures=additionalFeatures)
     all_features = all_features.drop('composition', axis='columns')
     all_features = all_features.fillna(cb.features.maskValue)
 
-    for feature in features.predictableFeatures:
+    for feature in cb.conf.targets:
         all_features[feature] = cb.features.maskValue
     all_features['GFA'] = all_features['GFA'].astype('int64')
     GFA_predictions = []
 
     prediction_ds = features.df_to_dataset(all_features)
     predictions = model.predict(prediction_ds)
-    for i in range(len(features.predictableFeatures)):
-        if features.predictableFeatures[i] == 'GFA':
+    for i in range(len(cb.conf.targets)):
+        if cb.conf.targets[i] == 'GFA':
             GFA_predictions = predictions[i]
         else:
-            all_features[features.predictableFeatures[i]
+            all_features[cb.conf.targets[i]
                          ] = predictions[i].flatten()
 
     return allPercentages, all_features, GFA_predictions, realData, step
@@ -1023,9 +1018,9 @@ def plot_ternary(elements, model, onlyPredictions=False,
     for feature in all_features.columns:
         trueFeatureName = feature.split(
             '_linearMix')[0].split('_discrepancy')[0]
-        if onlyPredictions and feature not in features.predictableFeatures and trueFeatureName not in additionalFeatures:
+        if onlyPredictions and feature not in cb.conf.targets and trueFeatureName not in additionalFeatures:
             continue
-        if feature not in features.predictableFeatures and os.path.exists(
+        if feature not in cb.conf.targets and os.path.exists(
                 ternary_dir + "/" + feature + ".png"):
             continue
 
@@ -1118,7 +1113,7 @@ def ternary_heatmap(heatmap_data, feature, elements, step,
     tax._redraw_labels()
 
     filepath = ""
-    if feature in features.predictableFeatures:
+    if feature in cb.conf.targets:
         filepath += ternary_dir + "/predictions/" + feature
     else:
         filepath += ternary_dir + "/features/" + feature
@@ -1162,7 +1157,7 @@ def plot_distributions(data):
     if not os.path.exists(cb.conf.image_directory + 'distributions'):
         os.makedirs(cb.conf.image_directory + 'distributions')
     for feature in data.columns:
-        if feature == 'composition' or feature not in features.predictableFeatures:
+        if feature == 'composition' or feature not in cb.conf.targets:
             continue
 
         ax1 = plt.subplot(311)
@@ -1251,7 +1246,7 @@ def plot_feature_variation(data, suffix=None):
     featureNames = []
     coefficients = []
     for feature in tmpData.columns:
-        if feature == 'composition' or feature in features.predictableFeatures:
+        if feature == 'composition' or feature in cb.conf.targets:
             continue
 
         featureNames.append(features.prettyName(feature))
@@ -1334,7 +1329,7 @@ def plot_correlation(data, suffix=None):
     plt.clf()
     plt.close()
 
-    for feature in features.predictableFeatures:
+    for feature in cb.conf.targets:
         if feature not in tmpData:
             continue
 
@@ -1350,7 +1345,7 @@ def plot_correlation(data, suffix=None):
 
         i = 0
         while(len(significantCorrelations) < 20 and i < len(featureNames)):
-            if(featureNames[i] != feature and featureNames[i] not in features.predictableFeatures):
+            if(featureNames[i] != feature and featureNames[i] not in cb.conf.targets):
                 significantCorrelations.append(featureCorrelation[i])
                 significantCorrelationFeatures.append(
                     features.prettyName(featureNames[i]))
@@ -1392,7 +1387,7 @@ def plot_feature_permutation(data):
     if not os.path.exists(cb.conf.image_directory + 'permutation'):
         os.makedirs(cb.conf.image_directory + 'permutation')
 
-    for predictFeature in features.predictableFeatures:
+    for predictFeature in cb.conf.targets:
         tmp_data = []
         tmp_features = []
         tmp_means = []

@@ -5,8 +5,11 @@ import cerebral as cb
 from . import features
 
 
-def load_data(use_composition_vector=False, plot=True,
-              dropCorrelatedFeatures=True, model=None, tmp=False, additionalFeatures=[]):
+def load_data(plot=True,
+              dropCorrelatedFeatures=True,
+              model=None, tmp=False,
+              additionalFeatures=[],
+              postprocess=None):
 
     data_directory = cb.conf.data.directory
     data_files = cb.conf.data.files
@@ -20,7 +23,7 @@ def load_data(use_composition_vector=False, plot=True,
                 rawData = pd.read_csv(data_directory + data_file)
             elif '.xls' in data_file:
                 rawData = pd.read_excel(data_directory + data_file, 'CD')
-                if 'deltaT' in features.predictableFeatures:
+                if 'deltaT' in cb.conf.target_names:
                     rawData = pd.concat([rawData, pd.read_excel(
                         data_directory + data_file, 'SLR')])
 
@@ -35,8 +38,9 @@ def load_data(use_composition_vector=False, plot=True,
 
         if model is None:
             data = features.calculate_features(
-                data, use_composition_vector=use_composition_vector, plot=plot,
-                dropCorrelatedFeatures=dropCorrelatedFeatures, additionalFeatures=additionalFeatures)
+                data, plot=plot,
+                dropCorrelatedFeatures=dropCorrelatedFeatures,
+                additionalFeatures=additionalFeatures)
 
         else:
             modelInputs = []
@@ -45,13 +49,11 @@ def load_data(use_composition_vector=False, plot=True,
 
             data = features.calculate_features(
                 data, requiredFeatures=modelInputs,
-                use_composition_vector=use_composition_vector, plot=plot,
-                dropCorrelatedFeatures=dropCorrelatedFeatures, additionalFeatures=additionalFeatures)
+                plot=plot,
+                dropCorrelatedFeatures=dropCorrelatedFeatures,
+                additionalFeatures=additionalFeatures)
 
         data = data.fillna(features.maskValue)
-
-        if 'GFA' in data:
-            data['GFA'] = data['GFA'].astype('int64')
 
         if not tmp:
             data.to_csv(data_directory+'calculated_features.csv')
@@ -59,7 +61,10 @@ def load_data(use_composition_vector=False, plot=True,
         data = pd.read_csv(data_directory+'calculated_features.csv')
         data = data.loc[:, ~data.columns.str.contains('^Unnamed')]
 
-    if 'deltaT' not in features.predictableFeatures and 'deltaT' in data:
+    if 'deltaT' not in cb.conf.target_names and 'deltaT' in data:
         data = data.drop('deltaT', axis='columns')
+
+    if postprocess is not None:
+        data = postprocess(data)
 
     return data

@@ -18,10 +18,7 @@ import metallurgy as mg
 
 from . import plots
 
-predictableFeatures = ['Tl', 'Tg', 'Tx', 'deltaT', 'GFA', 'Dmax']
-
 maskValue = -1
-idealGasConstant = 8.31
 
 units = {
     'Dmax': 'mm',
@@ -43,46 +40,13 @@ for feature in units:
         inverse_units[feature] = split_units[1] + "/" + split_units[0]
 
 
-def train_test_split(data, trainPercentage=0.75):
-    data = data.copy()
-
-    unique_composition_spaces = {}
-    for _, row in data.iterrows():
-        composition = mg.alloy.parse_composition(row['composition'])
-        sorted_composition = sorted(list(composition.keys()))
-        composition_space = "".join(sorted_composition)
-
-        if composition_space not in unique_composition_spaces:
-            unique_composition_spaces[composition_space] = []
-
-        unique_composition_spaces[composition_space].append(row)
-
-    numTraining = np.ceil(
-        int(trainPercentage * len(unique_composition_spaces)))
-
-    trainingSet = []
-    testSet = []
-
-    shuffled_unique_compositions = list(unique_composition_spaces.keys())
-    np.random.shuffle(shuffled_unique_compositions)
-
-    for i in range(len(shuffled_unique_compositions)):
-        compositions = unique_composition_spaces[shuffled_unique_compositions[i]]
-        if i < numTraining:
-            trainingSet.extend(compositions)
-        else:
-            testSet.extend(compositions)
-
-    return pd.DataFrame(trainingSet), pd.DataFrame(testSet)
-
-
 def calculate_compositions(data):
     compositions = []
     columns_to_drop = []
     for _, row in data.iterrows():
         composition = {}
         for column in data.columns:
-            if column not in predictableFeatures:
+            if column not in cb.conf.target_names:
                 if column not in columns_to_drop:
                     columns_to_drop.append(column)
                 if row[column] > 0:
@@ -106,124 +70,29 @@ def camelCaseToSentence(string):
 
 
 def prettyName(feature):
-    name = ""
-    if feature not in ['Tl', 'Tx', 'Tg', 'Dmax', 'deltaT']:
+
+    if feature in cb.conf.pretty_feature_names:
+        return r'$'+cb.conf.pretty_features[cb.conf.pretty_feature_names.index(feature)].pretty+'$'
+    else:
+        name = ""
         featureParts = feature.split('_')
         if len(featureParts) > 1:
             if featureParts[-1] == 'linearmix':
                 name = r'$\Sigma$ '
-            elif featureParts[-1] == 'reciprocalMix':
-                name = r'$\Sigma^{-1}$ '
-            elif featureParts[-1] == 'deviation':
-                name = r'$\sigma$ '
             elif featureParts[-1] == 'deviation':
                 name = r'$\delta$ '
-            elif featureParts[-1] == "_percent":
-                name = r'$\%$'
-
-            name += " ".join(featureParts[0:-1])
-    else:
-        if feature == 'Tl':
-            name = r'$T_l$'
-        elif feature == 'Tg':
-            name = r'$T_g$'
-        elif feature == 'Tx':
-            name = r'$T_x$'
-        elif feature == 'Dmax':
-            name = r'$D_{max}$'
-        elif feature == 'deltaT':
-            name = r'$\Delta T$'
-
-    return name
-
-
-droppedFeatures = []
-
-
-def ensure_default_values(row, i, data):
-    try:
-        _ = data.at[i, 'Dmax']
-        hasDmax = True
-    except BaseException:
-        hasDmax = False
-
-    if(hasDmax):
-        if not np.isnan(data.at[i, 'Dmax']):
-            if row['Dmax'] == 0:
-                data.at[i, 'GFA'] = 0
-            elif row['Dmax'] <= 0.15:
-                data.at[i, 'GFA'] = 1
-            else:
-                data.at[i, 'GFA'] = 2
-        else:
-            data.at[i, 'Dmax'] = maskValue
-    else:
-        data.at[i, 'Dmax'] = maskValue
-
-    try:
-        _ = data.at[i, 'GFA']
-        hasGFA = True
-    except BaseException:
-        hasGFA = False
-
-    if(hasGFA):
-        if not np.isnan(data.at[i, 'GFA']):
-            if(int(data.at[i, 'GFA']) == 0):
-                data.at[i, 'Dmax'] = 0
-            elif(int(data.at[i, 'GFA']) == 1):
-                data.at[i, 'Dmax'] = 0.15
-            elif(int(data.at[i, 'GFA']) == 2):
-                if('Dmax' in row):
-                    if(np.isnan(data.at[i, 'Dmax']) or data.at[i, 'Dmax'] == 0 or data.at[i, 'Dmax'] is None):
-                        data.at[i, 'Dmax'] = maskValue
-                else:
-                    data.at[i, 'Dmax'] = maskValue
-            else:
-                data.at[i, 'Dmax'] = maskValue
-        else:
-            data.at[i, 'GFA'] = maskValue
-    else:
-        data.at[i, 'GFA'] = maskValue
-
-    if 'Tx' in row and 'Tg' in row:
-        if not np.isnan(row['Tx']) and not np.isnan(row['Tg']) and not row['Tx'] == maskValue and not row['Tg'] == maskValue:
-            data.at[i, 'deltaT'] = row['Tx'] - row['Tg']
-        else:
-            data.at[i, 'deltaT'] = maskValue
+        name += " ".join(featureParts[0:-1])
+        return name
 
 
 def calculate_features(
         data,
-        use_composition_vector=False,
         dropCorrelatedFeatures=True, plot=False,
         additionalFeatures=[], requiredFeatures=[],
         merge_duplicates=True):
 
-    global droppedFeatures
-
-    basicFeatures = ['atomic_number', 'periodic_number', 'mass', 'group',
-                     'radius', 'atomic_volume',
-                     'period', 'protons', 'neutrons', 'electrons', 'valence_electrons',
-                     'valence', 'electron_affinity', 'ionisation_energies',
-                     'wigner_seitz_electron_density', 'work_function',
-                     'mendeleev_universal_sequence', 'chemical_scale',
-                     'mendeleev_pettifor', 'mendeleev_modified', 'electronegativity_pauling',
-                     'electronegativity_miedema', 'electronegativity_mulliken', 'melting_temperature',
-                     'boiling_temperature', 'fusion_enthalpy',
-                     'vaporisation_enthalpy', 'molar_heat_capacity',
-                     'thermal_conductivity', 'thermal_expansion',
-                     'density', 'cohesive_energy', 'debye_temperature',
-                     'chemical_hardness', 'chemical_potential']
-
-    complexFeatures = ['theoreticalDensity', 'atomic_volume_deviation',
-                       's_valence', 'p_valence', 'd_valence', 'f_valence',
-                       'structure_deviation', 'ideal_entropy',
-                       'ideal_entropy_xia', 'mismatch_entropy',
-                       'mixing_entropy', 'mixing_enthalpy',
-                       'mixing_Gibbs_free_energy',
-                       'block_deviation', 'series_deviation', 'viscosity',
-                       'lattice_distortion', 'EsnPerVec', 'EsnPerMn',
-                       'mismatch_PHS', 'mixing_PHS', 'PHSS', 'price']
+    basicFeatures = cb.conf.basicFeatures
+    complexFeatures = cb.conf.complexFeatures
 
     for additional in additionalFeatures:
         if additional not in basicFeatures and additional not in complexFeatures:
@@ -233,10 +102,8 @@ def calculate_features(
         dropCorrelatedFeatures = False
 
         for feature in requiredFeatures:
-            if feature.endswith("_percent"):
-                use_composition_vector = True
 
-            elif "_linearmix" in feature:
+            if "_linearmix" in feature:
                 actualFeature = feature.split("_linearmix")[0]
                 if actualFeature not in basicFeatures and actualFeature not in complexFeatures and feature not in complexFeatures:
                     basicFeatures.append(actualFeature)
@@ -249,11 +116,6 @@ def calculate_features(
             else:
                 if feature not in complexFeatures:
                     complexFeatures.append(feature)
-
-    # compositionPercentages = {}
-    # for element in elementData:
-    #     if element not in compositionPercentages:
-    #         compositionPercentages[element] = []
 
     featureValues = {}
     complexFeatureValues = {}
@@ -268,24 +130,17 @@ def calculate_features(
     for feature in complexFeatures:
         complexFeatureValues[feature] = []
 
-    if('GFA' in data.columns):
-        data['GFA'] = data['GFA'].map({'Crystal': 0, 'Ribbon': 1, 'BMG': 2})
-        data['GFA'] = data['GFA'].fillna(maskValue)
-        data['GFA'] = data['GFA'].astype(np.int64)
+    for feature in cb.conf.targets:
+        if(feature.type == 'categorical'):
+            data[feature.name] = data[feature.name].map(
+                {feature.classes[i]: i for i in range(len(feature.classes))}
+            )
+            data[feature.name] = data[feature.name].fillna(maskValue)
+            data[feature.name] = data[feature.name].astype(np.int64)
 
     for i, row in data.iterrows():
 
         composition = mg.alloy.parse_composition(row['composition'])
-
-        ensure_default_values(row, i, data)
-
-        if use_composition_vector:
-            for element in compositionPercentages:
-                if element in composition:
-                    compositionPercentages[element].append(
-                        composition[element])
-                else:
-                    compositionPercentages[element].append(0)
 
         for feature in basicFeatures:
 
@@ -419,10 +274,6 @@ def calculate_features(
                 )
             )
 
-    if use_composition_vector:
-        for element in compositionPercentages:
-            data[element + '_percent'] = compositionPercentages[element]
-
     for feature in featureValues:
         for kind in featureValues[feature]:
             if len(featureValues[feature][kind]) == len(data.index):
@@ -467,35 +318,20 @@ def calculate_features(
         deduplicated_rows = []
         for composition in duplicate_compositions:
 
-            maxClass = -1
-            for i in range(len(duplicate_compositions[composition])):
-                maxClass = max(
-                    [duplicate_compositions[composition][i]['GFA'], maxClass])
-
             averaged_features = {}
             num_contributions = {}
             for feature in duplicate_compositions[composition][0].keys():
-                if feature != 'composition' and "_percent" not in feature:
+                if feature != 'composition':
                     averaged_features[feature] = 0
                     num_contributions[feature] = 0
 
             for i in range(len(duplicate_compositions[composition])):
-                if duplicate_compositions[composition][i]['GFA'] == maxClass:
-                    for feature in averaged_features:
-                        if duplicate_compositions[composition][i][feature] != maskValue and not pd.isnull(
-                                duplicate_compositions[composition][i][feature]):
-
-                            averaged_features[feature] += duplicate_compositions[composition][i][feature]
-                            num_contributions[feature] += 1
-
-            for i in range(len(duplicate_compositions[composition])):
                 for feature in averaged_features:
-                    if num_contributions[feature] == 0:
-                        if duplicate_compositions[composition][i][feature] != maskValue and not pd.isnull(
-                                duplicate_compositions[composition][i][feature]):
+                    if duplicate_compositions[composition][i][feature] != maskValue and not pd.isnull(
+                            duplicate_compositions[composition][i][feature]):
 
-                            averaged_features[feature] += duplicate_compositions[composition][i][feature]
-                            num_contributions[feature] += 1
+                        averaged_features[feature] += duplicate_compositions[composition][i][feature]
+                        num_contributions[feature] += 1
 
             for feature in averaged_features:
                 if num_contributions[feature] == 0:
@@ -504,9 +340,6 @@ def calculate_features(
                     averaged_features[feature] /= num_contributions[feature]
 
             averaged_features['composition'] = composition
-            for feature in duplicate_compositions[composition][0].keys():
-                if "_percent" in feature:
-                    averaged_features[feature] = duplicate_compositions[composition][0][feature]
 
             deduplicated_rows.append(
                 pd.DataFrame(averaged_features, index=[0]))
@@ -519,12 +352,13 @@ def calculate_features(
         plots.plot_correlation(data)
         plots.plot_feature_variation(data)
 
+    droppedFeatures = []
     if dropCorrelatedFeatures:
 
         staticFeatures = []
         varianceCheckData = data.drop('composition', axis='columns')
         for feature in data.columns:
-            if feature in predictableFeatures or "_percent" in feature:
+            if feature in cb.conf.target_names:
                 varianceCheckData = varianceCheckData.drop(
                     feature, axis='columns')
 
@@ -587,23 +421,53 @@ def calculate_features(
         for feature in data.columns:
             trueFeatureName = feature.split(
                 '_linearmix')[0].split('_deviation')[0]
-            if feature not in requiredFeatures and feature != 'composition' and feature not in predictableFeatures and trueFeatureName not in additionalFeatures:
+            if feature not in requiredFeatures and feature != 'composition' and feature not in cb.conf.target_names and trueFeatureName not in additionalFeatures:
                 print("Dropping", feature)
                 data = data.drop(feature, axis='columns')
 
-    for i, row in data.iterrows():
-        ensure_default_values(row, i, data)
-
     return data.copy()
+
+
+def train_test_split(data, trainPercentage=0.75):
+    data = data.copy()
+
+    unique_composition_spaces = {}
+    for _, row in data.iterrows():
+        composition = mg.alloy.parse_composition(row['composition'])
+        sorted_composition = sorted(list(composition.keys()))
+        composition_space = "".join(sorted_composition)
+
+        if composition_space not in unique_composition_spaces:
+            unique_composition_spaces[composition_space] = []
+
+        unique_composition_spaces[composition_space].append(row)
+
+    numTraining = np.ceil(
+        int(trainPercentage * len(unique_composition_spaces)))
+
+    trainingSet = []
+    testSet = []
+
+    shuffled_unique_compositions = list(unique_composition_spaces.keys())
+    np.random.shuffle(shuffled_unique_compositions)
+
+    for i in range(len(shuffled_unique_compositions)):
+        compositions = unique_composition_spaces[shuffled_unique_compositions[i]]
+        if i < numTraining:
+            trainingSet.extend(compositions)
+        else:
+            testSet.extend(compositions)
+
+    return pd.DataFrame(trainingSet), pd.DataFrame(testSet)
 
 
 def df_to_dataset(dataframe):
     dataframe = dataframe.copy()
 
     labelNames = []
-    for feature in predictableFeatures:
-        if feature in dataframe.columns:
-            labelNames.append(feature)
+    for feature in cb.conf.targets:
+        if feature.name in dataframe.columns:
+            labelNames.append(feature.name)
 
     if len(labelNames) > 0:
         labels = pd.concat([dataframe.pop(x)
@@ -621,12 +485,12 @@ def df_to_dataset(dataframe):
     return ds
 
 
-def generate_sample_weights(labels, classWeights):
+def generate_sample_weights(labels, classFeature, classWeights):
     sampleWeight = []
     for _, row in labels.iterrows():
-        if 'GFA' in row:
-            if row['GFA'] in [0, 1, 2]:
-                sampleWeight.append(classWeights[int(row['GFA'])])
+        if classFeature in row:
+            if row[classFeature] != maskValue:
+                sampleWeight.append(classWeights[int(row[classFeature])])
             else:
                 sampleWeight.append(1)
         else:
@@ -642,42 +506,53 @@ def create_datasets(data, train=[], test=[]):
     train_ds = df_to_dataset(train)
     train_features = train.copy()
     train_labels = {}
-    for feature in predictableFeatures:
-        if feature in train_features:
-            train_labels[feature] = train_features.pop(feature)
+    for feature in cb.conf.targets:
+        if feature.name in train_features:
+            train_labels[feature.name] = train_features.pop(feature.name)
     train_labels = pd.DataFrame(train_labels)
 
-    if 'GFA' in data:
-        unique = pd.unique(data['GFA'])
-        classes = [0, 1, 2]
+    numCategoricalTargets = 0
+    categoricalTarget = None
+    for target in cb.conf.targets:
+        if target.type == 'categorical':
+            categoricalTarget = target
+            numCategoricalTargets += 1
 
-        counts = data['GFA'].value_counts()
+    if numCategoricalTargets == 1:
+        unique = pd.unique(data[categoricalTarget.name])
+
+        counts = data[categoricalTarget.name].value_counts()
         numSamples = 0
-        for c in classes:
+        for c in categoricalTarget.classes:
             if c in counts:
                 numSamples += counts[c]
 
         classWeights = []
-        for c in classes:
+        for c in categoricalTarget.classes:
             if c in counts:
                 classWeights.append(numSamples / (2 * counts[c]))
             else:
                 classWeights.append(1.0)
-    else:
-        classWeights = [1]
 
-    sampleWeight = generate_sample_weights(train_labels, classWeights)
+        sampleWeight = generate_sample_weights(
+            train_labels, categoricalTarget.name, classWeights)
+    else:
+        sampleWeight = [1]*len(train_labels)
 
     if len(test) > 0:
         test_ds = df_to_dataset(test)
         test_features = test.copy()
         test_labels = {}
-        for feature in predictableFeatures:
-            if feature in test_features:
-                test_labels[feature] = test_features.pop(feature)
+        for feature in cb.conf.targets:
+            if feature.name in test_features:
+                test_labels[feature.name] = test_features.pop(feature.name)
         test_labels = pd.DataFrame(test_labels)
 
-        sampleWeightTest = generate_sample_weights(test_labels, classWeights)
+        if numCategoricalTargets == 1:
+            sampleWeightTest = generate_sample_weights(
+                test_labels, categoricalTarget.name, classWeights)
+        else:
+            sampleWeightTest = [1]*len(test_labels)
 
         return train_ds, test_ds, train_features, test_features, train_labels, test_labels, sampleWeight, sampleWeightTest
     else:

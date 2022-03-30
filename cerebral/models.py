@@ -59,22 +59,22 @@ def build_ensemble(feature, ensemble_size, num_layers, units_layer,
                 else:
                     x = tf.keras.layers.Dropout(dropout / 5)(x)
 
-        if feature == 'GFA':
+        if feature.type == 'categorical':
             if ensemble_size > 1:
                 ensemble.append(tf.keras.layers.Dense(
                     3, activation='softmax',
-                    name=feature + '_' + str(m))(x))
+                    name=feature.name + '_' + str(m))(x))
             else:
                 ensemble.append(tf.keras.layers.Dense(
                     3, activation='softmax',
-                    name=feature)(x))
+                    name=feature.name)(x))
         else:
             if ensemble_size > 1:
                 ensemble.append(tf.keras.layers.Dense(
-                    1, activation='softplus', name=feature + '_' + str(m))(x))
+                    1, activation='softplus', name=feature.name + '_' + str(m))(x))
             else:
                 ensemble.append(tf.keras.layers.Dense(
-                    1, activation='softplus', name=feature)(x))
+                    1, activation='softplus', name=feature.name)(x))
     return ensemble
 
 
@@ -97,7 +97,7 @@ def build_model(train_features, train_labels, num_shared_layers,
     concatenated_inputs = tf.keras.layers.concatenate(
         normalized_inputs, name="Inputs")
 
-    if num_shared_layers > 0 and len(features.predictableFeatures) > 1:
+    if num_shared_layers > 0 and len(cb.conf.targets) > 1:
         baseModel = build_base_model(concatenated_inputs,
                                      num_shared_layers, regularizer, regularizer_rate, max_norm,
                                      dropout, activation,
@@ -108,11 +108,11 @@ def build_model(train_features, train_labels, num_shared_layers,
 
     # baseModel = tf.keras.layers.LayerNormalization()(baseModel)
 
-    losses, lossWeights, metrics = loss.setup_losses()
+    losses, metrics = loss.setup_losses()
     outputs = []
     normalized_outputs = []
 
-    for feature in features.predictableFeatures:
+    for feature in cb.conf.targets:
 
         if len(outputs) > 0:
             model_branch = tf.keras.layers.concatenate(
@@ -125,31 +125,21 @@ def build_model(train_features, train_labels, num_shared_layers,
                                   regularizer, regularizer_rate, dropout, model_branch)
 
         if(len(ensemble) > 1):
-            outputs.append(tf.keras.layers.average(ensemble, name=feature))
+            outputs.append(tf.keras.layers.average(
+                ensemble, name=feature.name))
         else:
             outputs.append(ensemble[0])
 
         normalized_outputs.append(
             tf.keras.layers.LayerNormalization()(outputs[-1])
-            # outputs[-1]
         )
-
-    if "Tx" in features.predictableFeatures and "Tg" in features.predictableFeatures and 'deltaT' not in features.predictableFeatures:
-        outputs.append(tf.keras.layers.Subtract(name="deltaT")([
-            outputs[features.predictableFeatures.index("Tx")],
-            outputs[features.predictableFeatures.index("Tg")]
-        ]))
-
-    # optimiser = tf.keras.optimizers.SGD(
-    #     learning_rate=learning_rate,
-    #     momentum=0.9,
-    #     nesterov=True
-    # )
 
     optimiser = tf.keras.optimizers.Adam(learning_rate=learning_rate)
 
     model = tf.keras.models.Model(inputs=inputs, outputs=outputs)
-    model.compile(loss=losses, metrics=metrics, loss_weights=lossWeights,
+    model.compile(loss=losses, metrics=metrics,
+                  loss_weights={target['name']: target['weight']
+                                for target in cb.conf.targets},
                   optimizer=optimiser, run_eagerly=False)
 
     tf.keras.utils.plot_model(
@@ -222,9 +212,9 @@ def fit(model, train_features, train_labels, sampleWeight, test_features=None,
         xTrain[feature] = train_features[feature]
 
     yTrain = {}
-    for feature in features.predictableFeatures:
-        if feature in train_labels:
-            yTrain[feature] = train_labels[feature]
+    for feature in cb.conf.targets:
+        if feature.name in train_labels:
+            yTrain[feature.name] = train_labels[feature.name]
 
     monitor = "loss"
 
@@ -235,9 +225,9 @@ def fit(model, train_features, train_labels, sampleWeight, test_features=None,
             xTest[feature] = test_features[feature]
 
         yTest = {}
-        for feature in features.predictableFeatures:
-            if feature in test_labels:
-                yTest[feature] = test_labels[feature]
+        for feature in cb.conf.targets:
+            if feature.name in test_labels:
+                yTest[feature.name] = test_labels[feature.name]
 
         testData = (xTest, yTest, sampleWeight_test)
 
@@ -312,21 +302,21 @@ def evaluate_model(model, train_ds, train_labels, test_ds=None,
     train_predictions = model.predict(train_ds)
 
     if len(predictionNames) == 1:
-        if predictionNames[0] != 'GFA':
+        if cb.conf.targets[cb.conf.target_names.index(predictionNames[0])].type == 'numerical':
             train_predictions = [train_predictions.flatten()]
     else:
         for i in range(len(train_predictions)):
-            if predictionNames[i] != 'GFA':
+            if cb.conf.targets[cb.conf.target_names.index(predictionNames[i])].type == 'numerical':
                 train_predictions[i] = train_predictions[i].flatten()
 
     if test_ds:
         test_predictions = model.predict(test_ds)
         if len(predictionNames) == 1:
-            if predictionNames[0] != 'GFA':
+            if cb.conf.targets[cb.conf.target_names.index(predictionNames[0])].type == 'numerical':
                 test_predictions = [test_predictions.flatten()]
         else:
             for i in range(len(test_predictions)):
-                if predictionNames[i] != 'GFA':
+                if cb.conf.targets[cb.conf.target_names.index(predictionNames[i])].type == 'numerical':
                     test_predictions[i] = test_predictions[i].flatten()
 
     if plot:

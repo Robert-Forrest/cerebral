@@ -127,7 +127,7 @@ def tune(train_features, train_labels, sampleWeight, test_features=None, test_la
         xTrain[feature] = train_features[feature]
 
     yTrain = {}
-    for feature in cb.features.predictableFeatures:
+    for feature in cb.cb.conf.targets:
         yTrain[feature] = train_labels[feature]
 
     if test_features is not None:
@@ -136,7 +136,7 @@ def tune(train_features, train_labels, sampleWeight, test_features=None, test_la
             xTest[feature] = test_features[feature]
 
         yTest = {}
-        for feature in cb.features.predictableFeatures:
+        for feature in cb.cb.conf.targets:
             yTest[feature] = test_labels[feature]
 
         tuner.search(

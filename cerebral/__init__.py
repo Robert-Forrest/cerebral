@@ -37,3 +37,6 @@ def setup():
         exit()
     elif conf.data.directory[-1] != "/":
         conf.data.directory += "/"
+
+    conf.target_names = [t.name for t in conf.targets]
+    conf.pretty_feature_names = [f.name for f in conf.pretty_features]

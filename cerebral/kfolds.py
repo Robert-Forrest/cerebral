@@ -64,24 +64,24 @@ def kfolds(originalData, save=False, plot=False):
 
     MADs = {}
     RMSDs = {}
-    for feature in features.predictableFeatures:
-        if feature != 'GFA':
-            MADs[feature] = metrics.meanAbsoluteDeviation(
-                features.filter_masked(originalData[feature]))
-            RMSDs[feature] = metrics.rootMeanSquareDeviation(
-                features.filter_masked(originalData[feature]))
+    for feature in cb.conf.targets:
+        if feature.type == 'numerical':
+            MADs[feature.name] = metrics.meanAbsoluteDeviation(
+                data.filter_masked(originalData[feature.name]))
+            RMSDs[feature.name] = metrics.rootMeanSquareDeviation(
+                data.filter_masked(originalData[feature.name]))
 
     MAEs = {}
     RMSEs = {}
     accuracies = {}
     f1s = {}
-    for feature in features.predictableFeatures:
-        if feature != 'GFA':
-            MAEs[feature] = []
-            RMSEs[feature] = []
+    for feature in cb.conf.targets:
+        if feature.type == 'numerical':
+            MAEs[feature.name] = []
+            RMSEs[feature.name] = []
         else:
-            accuracies[feature] = []
-            f1s[feature] = []
+            accuracies[feature.name] = []
+            f1s[feature.name] = []
 
     fold_test_labels = []
     fold_test_predictions = []
@@ -116,55 +116,55 @@ def kfolds(originalData, save=False, plot=False):
         fold_test_labels.append(test_labels)
         fold_test_predictions.append(test_predictions)
 
-        for feature in features.predictableFeatures:
-            featureIndex = features.predictableFeatures.index(feature)
-            if feature != 'GFA':
+        for feature in cb.conf.targets:
+            featureIndex = cb.conf.targets.index(feature.name)
+            if feature.type == 'numerical':
 
                 test_labels_masked, test_predictions_masked = features.filter_masked(
-                    test_labels[feature], test_predictions[featureIndex].flatten())
+                    test_labels[feature.name], test_predictions[featureIndex].flatten())
 
-                MAEs[feature].append(plots.calc_MAE(
+                MAEs[feature.name].append(plots.calc_MAE(
                     test_labels_masked, test_predictions_masked))
-                RMSEs[feature].append(plots.calc_RMSE(
+                RMSEs[feature.name].append(plots.calc_RMSE(
                     test_labels_masked, test_predictions_masked))
             else:
                 test_labels_masked, test_predictions_masked = plots.filter_masked(
-                    test_labels[feature], test_predictions[featureIndex])
+                    test_labels[feature.name], test_predictions[featureIndex])
 
-                accuracies[feature].append(plots.calc_accuracy(
+                accuracies[feature.name].append(plots.calc_accuracy(
                     test_labels_masked, test_predictions_masked))
-                f1s[feature].append(plots.calc_f1(
+                f1s[feature.name].append(plots.calc_f1(
                     test_labels_masked, test_predictions_masked))
 
     with open(cb.conf.output_directory + '/validation.dat', 'w') as validationFile:
-        for feature in features.predictableFeatures:
-            if feature != 'GFA':
-                validationFile.write('# ' + feature + '\n')
+        for feature in cb.conf.targets:
+            if feature.type == 'numerical':
+                validationFile.write('# ' + feature.name + '\n')
                 validationFile.write('# MAD RMSD\n')
                 validationFile.write(
-                    str(MADs[feature]) + ' ' + str(RMSDs[feature]) + '\n')
+                    str(MADs[feature]) + ' ' + str(RMSDs[feature.name]) + '\n')
                 validationFile.write('# foldId MAE RMSE\n')
-                for i in range(len(MAEs[feature])):
+                for i in range(len(MAEs[feature.name])):
                     validationFile.write(
-                        str(i) + ' ' + str(MAEs[feature][i]) + ' ' + str(RMSEs[feature][i]) + '\n')
+                        str(i) + ' ' + str(MAEs[feature.name][i]) + ' ' + str(RMSEs[feature.name][i]) + '\n')
                 validationFile.write('# Mean \n')
                 validationFile.write(
-                    str(np.mean(MAEs[feature])) + ' ' + str(np.mean(RMSEs[feature])) + '\n')
+                    str(np.mean(MAEs[feature.name])) + ' ' + str(np.mean(RMSEs[feature.name])) + '\n')
                 validationFile.write('# Standard Deviation \n')
                 validationFile.write(
-                    str(np.std(MAEs[feature])) + ' ' + str(np.std(RMSEs[feature])) + '\n\n')
+                    str(np.std(MAEs[feature.name])) + ' ' + str(np.std(RMSEs[feature.name])) + '\n\n')
             else:
-                validationFile.write('# ' + feature + '\n')
+                validationFile.write('# ' + feature.name + '\n')
                 validationFile.write('# foldId accuracy f1\n')
-                for i in range(len(accuracies[feature])):
+                for i in range(len(accuracies[feature.name])):
                     validationFile.write(
-                        str(i) + ' ' + str(accuracies[feature][i]) + ' ' + str(f1s[feature][i]) + '\n')
+                        str(i) + ' ' + str(accuracies[feature.name][i]) + ' ' + str(f1s[feature.name][i]) + '\n')
                 validationFile.write('# Mean \n')
                 validationFile.write(
-                    str(np.mean(accuracies[feature])) + ' ' + str(np.mean(f1s[feature])) + '\n')
+                    str(np.mean(accuracies[feature.name])) + ' ' + str(np.mean(f1s[feature.name])) + '\n')
                 validationFile.write('# Standard Deviation \n')
                 validationFile.write(
-                    str(np.std(accuracies[feature])) + ' ' + str(np.std(f1s[feature])) + '\n\n')
+                    str(np.std(accuracies[feature.name])) + ' ' + str(np.std(f1s[feature.name])) + '\n\n')
 
     plots.plot_results_regression_heatmap(
         fold_test_labels, fold_test_predictions)
@@ -180,7 +180,7 @@ def kfoldsEnsemble(originalData):
 
     inputs = models.build_input_layers(train_features)
     outputs = []
-    losses, lossWeights, metrics = loss.setup_losses()
+    losses, metrics = loss.setup_losses()
     # lossWeights = {
     #     'Tl': 1,
     #     'Tg': 1,
@@ -200,7 +200,7 @@ def kfoldsEnsemble(originalData):
 
         submodel_outputs.append(submodel(inputs))
 
-    for i in range(len(features.predictableFeatures)):
+    for i in range(len(cb.conf.targets)):
 
         submodel_output = [output[i] for output in submodel_outputs]
 
@@ -209,7 +209,7 @@ def kfoldsEnsemble(originalData):
         hidden = tf.keras.layers.Dense(64, activation="relu")(submodels_merged)
 
         output = None
-        if features.predictableFeatures[i] in ["GFA"]:
+        if cb.conf.targets[i].type == 'categorical':
             activation = "softmax"
             numNodes = 3
         else:
@@ -219,7 +219,7 @@ def kfoldsEnsemble(originalData):
         output = tf.keras.layers.Dense(
             numNodes,
             activation=activation,
-            name=features.predictableFeatures[i])(hidden)
+            name=cb.conf.targets[i].name)(hidden)
         outputs.append(output)
 
     model = tf.keras.Model(inputs=inputs, outputs=outputs)
@@ -232,7 +232,8 @@ def kfoldsEnsemble(originalData):
     model.compile(
         optimizer=optimiser,
         loss=losses,
-        loss_weights=lossWeights,
+        loss_weights={target['name']: target['weight']
+                      for target in cb.conf.targets},
         metrics=metrics)
 
     model, history = models.fit(

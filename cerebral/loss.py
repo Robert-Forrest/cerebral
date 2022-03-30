@@ -1,5 +1,6 @@
 import tensorflow as tf
 
+import cerebral as cb
 from . import metrics
 from . import features
 
@@ -75,30 +76,19 @@ def negloglik(y_true, y_pred):
 def setup_losses():
     losses = {}
     feature_metrics = {}
-    lossWeights = {}
 
-    for feature in features.predictableFeatures:
-        if feature in ['Tl', 'Tg', 'Tx', 'deltaT', 'Dmax']:
-            feature_metrics[feature] = [masked_MSE, masked_MAE,
-                                        masked_Huber, masked_PseudoHuber]
-        elif feature == 'GFA':
-            feature_metrics[feature] = [metrics.accuracy, metrics.truePositiveRate, metrics.trueNegativeRate,
-                                        metrics.positivePredictiveValue, metrics.negativePredictiveValue,
-                                        metrics.balancedAccuracy, metrics.f1,
-                                        metrics.informedness, metrics.markedness]
+    for feature in cb.conf.targets:
+        if feature.type == 'numerical':
+            feature_metrics[feature.name] = [masked_MSE, masked_MAE,
+                                             masked_Huber, masked_PseudoHuber]
+            losses[feature.name] = masked_Huber  # masked_MSE
+        else:
+            feature_metrics[feature.name] = [
+                metrics.accuracy, metrics.truePositiveRate, metrics.trueNegativeRate,
+                metrics.positivePredictiveValue, metrics.negativePredictiveValue,
+                metrics.balancedAccuracy, metrics.f1,
+                metrics.informedness, metrics.markedness
+            ]
+            losses[feature.name] = masked_sparse_categorical_crossentropy
 
-        if feature in ['Tl', 'Tg', 'Tx', 'deltaT', 'Dmax']:
-            losses[feature] = masked_Huber  # masked_MSE
-        elif feature == 'GFA':
-            losses[feature] = masked_sparse_categorical_crossentropy
-
-        if feature in ['Tg', 'Tx']:
-            lossWeights[feature] = 1
-        elif feature == 'Tl':
-            lossWeights[feature] = 0.1
-        elif feature == 'Dmax' or feature == 'deltaT':
-            lossWeights[feature] = 100
-        elif feature == 'GFA':
-            lossWeights[feature] = 1
-
-    return losses, lossWeights, feature_metrics
+    return losses, feature_metrics
