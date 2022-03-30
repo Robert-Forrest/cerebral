@@ -16,7 +16,7 @@ import elementy
 import cerebral as cb
 import metallurgy as mg
 
-import plots
+from . import plots
 
 predictableFeatures = ['Tl', 'Tg', 'Tx', 'deltaT', 'GFA', 'Dmax']
 
@@ -186,19 +186,20 @@ def ensure_default_values(row, i, data):
         data.at[i, 'GFA'] = maskValue
 
     if 'Tx' in row and 'Tg' in row:
-        if not np.isnan(row['Tx']) and not np.isnan(row['Tg']):
+        if not np.isnan(row['Tx']) and not np.isnan(row['Tg']) and not row['Tx'] == maskValue and not row['Tg'] == maskValue:
             data.at[i, 'deltaT'] = row['Tx'] - row['Tg']
+        else:
+            data.at[i, 'deltaT'] = maskValue
 
 
-def calculate_features(data, calculate_extra_features=True, use_composition_vector=False,
-                       dropCorrelatedFeatures=True, plot=False, additionalFeatures=[], requiredFeatures=[], merge_duplicates=True):
+def calculate_features(
+        data,
+        use_composition_vector=False,
+        dropCorrelatedFeatures=True, plot=False,
+        additionalFeatures=[], requiredFeatures=[],
+        merge_duplicates=True):
 
     global droppedFeatures
-
-    # calculate_extra_features = True
-    # use_composition_vector = False
-    if not calculate_extra_features:
-        dropCorrelatedFeatures = False
 
     basicFeatures = ['atomic_number', 'periodic_number', 'mass', 'group',
                      'radius', 'atomic_volume',
@@ -236,19 +237,16 @@ def calculate_features(data, calculate_extra_features=True, use_composition_vect
                 use_composition_vector = True
 
             elif "_linearmix" in feature:
-                calculate_extra_features = True
                 actualFeature = feature.split("_linearmix")[0]
                 if actualFeature not in basicFeatures and actualFeature not in complexFeatures and feature not in complexFeatures:
                     basicFeatures.append(actualFeature)
 
             elif "_deviation" in feature:
-                calculate_extra_features = True
                 actualFeature = feature.split("_deviation")[0]
                 if actualFeature not in basicFeatures and actualFeature not in complexFeatures and feature not in complexFeatures:
                     basicFeatures.append(actualFeature)
 
             else:
-                calculate_extra_features = True
                 if feature not in complexFeatures:
                     complexFeatures.append(feature)
 
@@ -275,13 +273,6 @@ def calculate_features(data, calculate_extra_features=True, use_composition_vect
         data['GFA'] = data['GFA'].fillna(maskValue)
         data['GFA'] = data['GFA'].astype(np.int64)
 
-    import cProfile
-    import io
-    import pstats
-    from pstats import SortKey
-    pr = cProfile.Profile()
-    pr.enable()
-
     for i, row in data.iterrows():
 
         composition = mg.alloy.parse_composition(row['composition'])
@@ -296,149 +287,149 @@ def calculate_features(data, calculate_extra_features=True, use_composition_vect
                 else:
                     compositionPercentages[element].append(0)
 
-        if calculate_extra_features:
-            for feature in basicFeatures:
+        for feature in basicFeatures:
 
-                if 'linearmix' in featureValues[feature]:
-                    featureValues[feature]['linearmix'].append(
-                        mg.linear_mixture(composition, feature))
+            if 'linearmix' in featureValues[feature]:
+                featureValues[feature]['linearmix'].append(
+                    mg.linear_mixture(composition, feature))
 
-                if 'deviation' in featureValues[feature]:
-                    featureValues[feature]['deviation'].append(
-                        mg.deviation(composition, feature))
+            if 'deviation' in featureValues[feature]:
+                featureValues[feature]['deviation'].append(
+                    mg.deviation(composition, feature))
 
-            if 'theoreticalDensity' in complexFeatureValues:
-                complexFeatureValues['theoreticalDensity'].append(
-                    mg.density.calculate_theoretical_density(composition))
+        if 'theoreticalDensity' in complexFeatureValues:
+            complexFeatureValues['theoreticalDensity'].append(
+                mg.density.calculate_theoretical_density(composition))
 
-            if 'sValence' in complexFeatureValues:
-                complexFeatureValues['sValence'].append(
-                    mg.valence.calculate_valence_proportion(composition, 's'))
-            if 'pValence' in complexFeatureValues:
-                complexFeatureValues['pValence'].append(
-                    mg.valence.calculate_valence_proportion(composition, 'p'))
-            if 'dValence' in complexFeatureValues:
-                complexFeatureValues['dValence'].append(
-                    mg.valence.calculate_valence_proportion(composition, 'd'))
-            if 'fValence' in complexFeatureValues:
-                complexFeatureValues['fValence'].append(
-                    mg.valence.calculate_valence_proportion(composition, 'f'))
+        if 'sValence' in complexFeatureValues:
+            complexFeatureValues['sValence'].append(
+                mg.valence.calculate_valence_proportion(composition, 's'))
+        if 'pValence' in complexFeatureValues:
+            complexFeatureValues['pValence'].append(
+                mg.valence.calculate_valence_proportion(composition, 'p'))
+        if 'dValence' in complexFeatureValues:
+            complexFeatureValues['dValence'].append(
+                mg.valence.calculate_valence_proportion(composition, 'd'))
+        if 'fValence' in complexFeatureValues:
+            complexFeatureValues['fValence'].append(
+                mg.valence.calculate_valence_proportion(composition, 'f'))
 
-            if 'ideal_entropy' in complexFeatureValues:
-                complexFeatureValues['ideal_entropy'].append(
-                    mg.entropy.calculate_ideal_entropy(composition))
+        if 'ideal_entropy' in complexFeatureValues:
+            complexFeatureValues['ideal_entropy'].append(
+                mg.entropy.calculate_ideal_entropy(composition))
 
-            if 'ideal_entropy_Xia' in complexFeatureValues:
-                complexFeatureValues['ideal_entropy_Xia'].append(
-                    mg.entropy.calculate_ideal_entropy_xia(composition))
+        if 'ideal_entropy_Xia' in complexFeatureValues:
+            complexFeatureValues['ideal_entropy_Xia'].append(
+                mg.entropy.calculate_ideal_entropy_xia(composition))
 
-            if 'mismatch_entropy' in complexFeatureValues:
-                complexFeatureValues['mismatch_entropy'].append(
-                    mg.entropy.calculate_mismatch_entropy(composition))
+        if 'mismatch_entropy' in complexFeatureValues:
+            complexFeatureValues['mismatch_entropy'].append(
+                mg.entropy.calculate_mismatch_entropy(composition))
 
-            if 'mixing_entropy' in complexFeatureValues:
-                complexFeatureValues['mixing_entropy'].append(
-                    mg.entropy.calculate_mixing_entropy(composition))
+        if 'mixing_entropy' in complexFeatureValues:
+            complexFeatureValues['mixing_entropy'].append(
+                mg.entropy.calculate_mixing_entropy(composition))
 
-            if 'structure_deviation' in complexFeatureValues:
-                complexFeatureValues['structure_deviation'].append(
-                    mg.structures.calculate_structure_mismatch(composition))
+        if 'structure_deviation' in complexFeatureValues:
+            complexFeatureValues['structure_deviation'].append(
+                mg.structures.calculate_structure_mismatch(composition))
 
-            if 'block_deviation' in complexFeatureValues:
-                complexFeatureValues['block_deviation'].append(
-                    mg.deviation(composition, 'block'))
+        if 'block_deviation' in complexFeatureValues:
+            complexFeatureValues['block_deviation'].append(
+                mg.deviation(composition, 'block'))
 
-            if 'series_deviation' in complexFeatureValues:
-                complexFeatureValues['series_deviation'].append(
-                    mg.deviation(composition, 'series'))
+        if 'series_deviation' in complexFeatureValues:
+            complexFeatureValues['series_deviation'].append(
+                mg.deviation(composition, 'series'))
 
-            if 'mixing_enthalpy' in complexFeatureValues:
-                complexFeatureValues['mixing_enthalpy'].append(
-                    mg.enthalpy.calculate_mixing_enthalpy(composition))
+        if 'mixing_enthalpy' in complexFeatureValues:
+            complexFeatureValues['mixing_enthalpy'].append(
+                mg.enthalpy.calculate_mixing_enthalpy(composition))
 
-            if 'price' in complexFeatureValues:
-                complexFeatureValues['price'].append(
-                    mg.price.calculate_price(composition))
+        if 'price' in complexFeatureValues:
+            complexFeatureValues['price'].append(
+                mg.price.calculate_price(composition))
 
-            if 'mixing_Gibbs_free_energy' in complexFeatureValues:
-                complexFeatureValues['mixing_Gibbs_free_energy'].append(
-                    mg.enthalpy.calculate_mixing_Gibbs_free_energy(composition,
-                                                                   complexFeatureValues['mixing_enthalpy'][-1],
-                                                                   featureValues['melting_temperature']['linearmix'][-1],
-                                                                   complexFeatureValues['mixing_entropy'][-1]))
+        if 'mixing_Gibbs_free_energy' in complexFeatureValues:
+            complexFeatureValues['mixing_Gibbs_free_energy'].append(
+                mg.enthalpy.calculate_mixing_Gibbs_free_energy(composition,
+                                                               complexFeatureValues['mixing_enthalpy'][-1],
+                                                               featureValues['melting_temperature']['linearmix'][-1],
+                                                               complexFeatureValues['mixing_entropy'][-1]))
 
-            if 'mismatch_PHS' in complexFeatureValues:
-                complexFeatureValues['mismatch_PHS'].append(
-                    mg.enthalpy.calculate_mismatch_PHS(
-                        composition,
-                        complexFeatureValues['mixing_enthalpy'][-1],
-                        complexFeatureValues['mismatch_entropy'][-1])
+        if 'mismatch_PHS' in complexFeatureValues:
+            complexFeatureValues['mismatch_PHS'].append(
+                mg.enthalpy.calculate_mismatch_PHS(
+                    composition,
+                    complexFeatureValues['mixing_enthalpy'][-1],
+                    complexFeatureValues['mismatch_entropy'][-1])
+            )
+
+        if 'mixing_PHS' in complexFeatureValues:
+            complexFeatureValues['mismatch_PHS'].append(
+                mg.enthalpy.calculate_mixing_PHS(
+                    composition,
+                    complexFeatureValues['mixing_enthalpy'][-1],
+                    complexFeatureValues['mixing_entropy'][-1])
+            )
+
+        if 'PHSS' in complexFeatureValues:
+            complexFeatureValues['PHSS'].append(
+                mg.enthalpy.calculate_mixing_PHSS(
+                    composition,
+                    complexFeatureValues['mixing_enthalpy'][-1],
+                    complexFeatureValues['mixing_entropy'][-1],
+                    complexFeatureValues['mismatch_entropy'][-1])
+            )
+
+        if 'viscosity' in complexFeatureValues:
+            complexFeatureValues['viscosity'].append(
+                mg.viscosity.calculate_viscosity(composition, complexFeatureValues['mixing_enthalpy'][-1]))
+
+        if 'radius_gamma' in complexFeatureValues:
+            complexFeatureValues['radius_gamma'].append(
+                mg.radii.calculate_radius_gamma(composition))
+
+        if 'lattice_distortion' in complexFeatureValues:
+            complexFeatureValues['lattice_distortion'].append(
+                mg.radii.calculate_lattice_distortion(composition))
+
+        if 'EsnPerVec' in complexFeatureValues:
+            complexFeatureValues['EsnPerVec'].append(
+                mg.ratios.shell_to_valence_electron_concentration(
+                    row['composition'],
+                    featureValues['period']['linearmix'][-1],
+                    featureValues['valence_electrons']['linearmix'][-1])
+            )
+
+        if 'EsnPerMn' in complexFeatureValues:
+            complexFeatureValues['EsnPerMn'].append(
+                mg.ratios.shell_to_valence_electron_concentration(
+                    row['composition'],
+                    featureValues['period']['linearmix'][-1],
+                    featureValues['mendeleev_universal_sequence']['linearmix'][-1])
+            )
+
+        if 'thermodynamic_factor' in complexFeatureValues:
+            complexFeatureValues['thermodynamic_factor'].append(
+                mg.enthalpy.calculate_thermodynamic_factor(
+                    featureValues['melting_temperature']['linearmix'][-1],
+                    complexFeatureValues['mixing_entropy'][-1],
+                    complexFeatureValues['mixing_enthalpy'][-1]
                 )
-
-            if 'mixing_PHS' in complexFeatureValues:
-                complexFeatureValues['mismatch_PHS'].append(
-                    mg.enthalpy.calculate_mixing_PHS(
-                        composition,
-                        complexFeatureValues['mixing_enthalpy'][-1],
-                        complexFeatureValues['mixing_entropy'][-1])
-                )
-
-            if 'PHSS' in complexFeatureValues:
-                complexFeatureValues['PHSS'].append(
-                    mg.enthalpy.calculate_mixing_PHS(
-                        composition,
-                        complexFeatureValues['mixing_enthalpy'][-1],
-                        complexFeatureValues['mixing_entropy'][-1],
-                        complexFeatureValues['mismatch_entropy'][-1])
-                )
-
-            if 'viscosity' in complexFeatureValues:
-                complexFeatureValues['viscosity'].append(
-                    mg.viscosity.calculate_viscosity(composition, complexFeatureValues['mixing_enthalpy'][-1]))
-
-            if 'radius_gamma' in complexFeatureValues:
-                complexFeatureValues['radius_gamma'].append(
-                    mg.radii.calculate_radius_gamma(composition))
-
-            if 'lattice_distortion' in complexFeatureValues:
-                complexFeatureValues['lattice_distortion'].append(
-                    mg.radii.calculate_lattice_distortion(composition))
-
-            if 'EsnPerVec' in complexFeatureValues:
-                complexFeatureValues['EsnPerVec'].append(
-                    mg.ratios.shell_to_valence_electron_concentration(
-                        featureValues['period']['linearmix'][-1],
-                        featureValues['valence_electrons']['linearmix'][-1])
-                )
-
-            if 'EsnPerMn' in complexFeatureValues:
-                complexFeatureValues['EsnPerMn'].append(
-                    mg.ratios.shell_to_valence_electron_concentration(
-                        featureValues['period']['linearmix'][-1],
-                        featureValues['mendeleev_universal_sequence']['linearmix'][-1])
-                )
-
-            if 'thermodynamic_factor' in complexFeatureValues:
-                complexFeatureValues['thermodynamic_factor'].append(
-                    mg.enthalpy.calculate_thermodynamic_factor(
-                        featureValues['melting_temperature']['linearmix'][-1],
-                        complexFeatureValues['mixing_entropy'][-1],
-                        complexFeatureValues['mixing_enthalpy'][-1]
-                    )
-                )
+            )
 
     if use_composition_vector:
         for element in compositionPercentages:
             data[element + '_percent'] = compositionPercentages[element]
 
-    if calculate_extra_features:
-        for feature in featureValues:
-            for kind in featureValues[feature]:
-                if len(featureValues[feature][kind]) == len(data.index):
-                    data[feature + '_' + kind] = featureValues[feature][kind]
-        for feature in complexFeatures:
-            if len(complexFeatureValues[feature]) == len(data.index):
-                data[feature] = complexFeatureValues[feature]
+    for feature in featureValues:
+        for kind in featureValues[feature]:
+            if len(featureValues[feature][kind]) == len(data.index):
+                data[feature + '_' + kind] = featureValues[feature][kind]
+    for feature in complexFeatures:
+        if len(complexFeatureValues[feature]) == len(data.index):
+            data[feature] = complexFeatureValues[feature]
 
     data = data.drop_duplicates()
     data = data.fillna(maskValue)
@@ -563,7 +554,7 @@ def calculate_features(data, calculate_extra_features=True, use_composition_vect
             if varianceCheckData.columns[i] not in correlatedDroppedFeatures:
                 for j in range(i + 1, len(correlation)):
                     if varianceCheckData.columns[j] not in correlatedDroppedFeatures:
-                        if np.abs(correlation[i][j]) >= cb.conf.get("train.correlation_threshold", 0.8):
+                        if np.abs(correlation[i][j]) >= cb.conf.train.get("correlation_threshold", 0.8):
 
                             if sum(np.abs(correlation[i])) < sum(
                                     np.abs(correlation[j])):
@@ -621,7 +612,7 @@ def df_to_dataset(dataframe):
     else:
         ds = tf.data.Dataset.from_tensor_slices(dict(dataframe))
 
-    batch_size = cb.conf.get('train.batch_size', 1024)
+    batch_size = cb.conf.train.get('batch_size', 1024)
 
     ds = ds.batch(batch_size)
     ds = ds.prefetch(batch_size)

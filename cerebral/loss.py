@@ -84,7 +84,7 @@ def setup_losses():
         elif feature == 'GFA':
             feature_metrics[feature] = [metrics.accuracy, metrics.truePositiveRate, metrics.trueNegativeRate,
                                         metrics.positivePredictiveValue, metrics.negativePredictiveValue,
-                                        metrics.balancedAccuracy, metrics.f1_score,
+                                        metrics.balancedAccuracy, metrics.f1,
                                         metrics.informedness, metrics.markedness]
 
         if feature in ['Tl', 'Tg', 'Tx', 'deltaT', 'Dmax']:

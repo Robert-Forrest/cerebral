@@ -169,7 +169,7 @@ def load(path):
         'positivePredictiveValue': metrics.positivePredictiveValue,
         'negativePredictiveValue': metrics.negativePredictiveValue,
         'balancedAccuracy': metrics.balancedAccuracy,
-        'f1_score': metrics.f1_score,
+        'f1_score': metrics.f1,
         'informedness': metrics.informedness,
         'markedness': metrics.markedness,
         'masked_MSE': loss.masked_MSE,
@@ -246,7 +246,7 @@ def fit(model, train_features, train_labels, sampleWeight, test_features=None,
     history = model.fit(
         x=xTrain,
         y=yTrain,
-        batch_size=cb.conf.get('train.batch_size', 1024),
+        batch_size=cb.conf.train.get('batch_size', 1024),
         epochs=maxEpochs,
         callbacks=[
             tf.keras.callbacks.EarlyStopping(

@@ -5,13 +5,11 @@ import cerebral as cb
 from . import features
 
 
-def load_data(calculate_extra_features=True, use_composition_vector=False, plot=True,
+def load_data(use_composition_vector=False, plot=True,
               dropCorrelatedFeatures=True, model=None, tmp=False, additionalFeatures=[]):
 
     data_directory = cb.conf.data.directory
     data_files = cb.conf.data.files
-
-    print("LOADING:", data_directory, data_files)
 
     if (not os.path.exists(data_directory+'calculated_features.csv')
             or model is not None or tmp):
@@ -36,16 +34,19 @@ def load_data(calculate_extra_features=True, use_composition_vector=False, plot=
         data = pd.concat(data, ignore_index=True)
 
         if model is None:
-            data = features.calculate_features(data, calculate_extra_features=calculate_extra_features,
-                                               use_composition_vector=use_composition_vector, plot=plot,
-                                               dropCorrelatedFeatures=dropCorrelatedFeatures, additionalFeatures=additionalFeatures)
+            data = features.calculate_features(
+                data, use_composition_vector=use_composition_vector, plot=plot,
+                dropCorrelatedFeatures=dropCorrelatedFeatures, additionalFeatures=additionalFeatures)
+
         else:
             modelInputs = []
             for inputLayer in model.inputs:
                 modelInputs.append(inputLayer.name)
-            data = features.calculate_features(data, requiredFeatures=modelInputs, calculate_extra_features=calculate_extra_features,
-                                               use_composition_vector=use_composition_vector, plot=plot,
-                                               dropCorrelatedFeatures=dropCorrelatedFeatures, additionalFeatures=additionalFeatures)
+
+            data = features.calculate_features(
+                data, requiredFeatures=modelInputs,
+                use_composition_vector=use_composition_vector, plot=plot,
+                dropCorrelatedFeatures=dropCorrelatedFeatures, additionalFeatures=additionalFeatures)
 
         data = data.fillna(features.maskValue)
 

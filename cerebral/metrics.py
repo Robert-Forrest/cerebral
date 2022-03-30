@@ -1,3 +1,4 @@
+import numpy as np
 import tensorflow as tf
 from sklearn.metrics import mean_squared_error, mean_absolute_error, roc_curve, auc, accuracy_score, f1_score, recall_score, precision_score, precision_recall_fscore_support
 
@@ -46,7 +47,7 @@ def positivePredictiveValue(y_true, y_pred):
                                                          y_pred, 1) + ppvPerClass(y_true, y_pred, 2)) / 3
 
 
-def f1_score(y_true, y_pred):
+def f1(y_true, y_pred):
     positivePredictiveValue_val = positivePredictiveValue(y_true, y_pred)
     truePositiveRate_val = truePositiveRate(y_true, y_pred)
     return (2 * positivePredictiveValue_val * truePositiveRate_val) / \
