@@ -552,178 +552,6 @@ def plot_multiclass_roc(true, pred, set, image_directory):
     plt.close()
 
 
-def plot_binary(elements, model, onlyPredictions=False, originalData=None, inspect_features=["percentage"], additionalFeatures=[]):
-    if not os.path.exists(cb.conf.image_directory + "compositions"):
-        os.makedirs(cb.conf.image_directory + "compositions")
-    binary_dir = cb.conf.image_directory + \
-        "compositions/" + "_".join(elements)
-    if not os.path.exists(binary_dir):
-        os.makedirs(binary_dir)
-
-    realData = []
-    requiredFeatures = None
-    if originalData is not None:
-        for _, row in originalData.iterrows():
-            parsedComposition = mg.alloy.parse_composition(row['composition'])
-            if set(elements).issuperset(set(parsedComposition.keys())):
-                if elements[0] in parsedComposition:
-                    row['percentage'] = parsedComposition[elements[0]] * 100
-                else:
-                    row['percentage'] = 0
-                realData.append(row)
-        realData = pd.DataFrame(realData)
-        realData = realData.reset_index(drop=True)
-        requiredFeatures = list(originalData.columns)
-
-    for feature in inspect_features:
-        if feature not in requiredFeatures:
-            requiredFeatures.append(feature)
-
-    compositions, percentages = mg.binary.generate_alloys(elements)
-
-    all_features = pd.DataFrame(compositions, columns=['composition'])
-    all_features = features.calculate_features(all_features,
-                                               dropCorrelatedFeatures=False,
-                                               plot=False,
-                                               requiredFeatures=requiredFeatures,
-                                               additionalFeatures=additionalFeatures)
-    all_features = all_features.drop('composition', axis='columns')
-    all_features = all_features.fillna(cb.features.maskValue)
-    for feature in cb.conf.targets:
-        all_features[feature.name] = cb.features.maskValue
-    all_features['GFA'] = all_features['GFA'].astype('int64')
-    all_features['percentage'] = percentages
-    GFA_predictions = []
-
-    prediction_ds = features.df_to_dataset(all_features)
-    predictions = model.predict(prediction_ds)
-    for i in range(len(cb.conf.targets)):
-        if cb.conf.targets[i] == 'GFA':
-            GFA_predictions = predictions[i]
-        else:
-            all_features[cb.conf.targets[i]] = predictions[i]
-
-    for inspect_feature in inspect_features:
-        if inspect_feature not in all_features.columns:
-            continue
-        if not os.path.exists(binary_dir+'/'+inspect_feature):
-            os.makedirs(binary_dir + '/'+inspect_feature)
-        if not os.path.exists(binary_dir+'/'+inspect_feature + '/predictions'):
-            os.makedirs(binary_dir+'/'+inspect_feature + '/predictions')
-        if not os.path.exists(binary_dir+'/'+inspect_feature + '/features'):
-            os.makedirs(binary_dir+'/'+inspect_feature + '/features')
-
-        for feature in all_features.columns:
-            trueFeatureName = feature.split(
-                '_linearMix')[0].split('_discrepancy')[0]
-            if (onlyPredictions and feature not in cb.conf.targets and trueFeatureName not in additionalFeatures) or inspect_feature == feature:
-                continue
-            if feature not in cb.conf.targets and os.path.exists(
-                    binary_dir + "/"+inspect_feature + "/" + feature + ".png"):
-                continue
-
-            fig = plt.figure()
-            ax1 = fig.add_subplot(111)
-            # plt.grid(alpha=.4)
-
-            if feature == 'GFA':
-                crystal = []
-                ribbon = []
-                BMG = []
-                for prediction in GFA_predictions:
-                    crystal.append(prediction[0])
-                    ribbon.append(prediction[1])
-                    BMG.append(prediction[2])
-
-                ax1.plot(all_features[inspect_feature],
-                         crystal, label='Crystal')
-                ax1.plot(all_features[inspect_feature], ribbon, label='Ribbon')
-                ax1.plot(all_features[inspect_feature], BMG, label='BMG')
-                ax1.legend(loc="best")
-
-                if len(realData) > 0 and inspect_feature in realData:
-                    ax1.scatter(realData[realData['GFA'] == 0][inspect_feature],
-                                [1] * len(realData[realData['GFA'] == 0][inspect_feature]), marker="s", edgecolors='k', zorder=2)
-                    ax1.scatter(realData[realData['GFA'] == 1][inspect_feature],
-                                [1] * len(realData[realData['GFA'] == 1][inspect_feature]), marker="D", edgecolors='k', zorder=2)
-                    ax1.scatter(realData[realData['GFA'] == 2][inspect_feature],
-                                [1] * len(realData[realData['GFA'] == 2][inspect_feature]), marker="o", edgecolors='k', zorder=2)
-
-            else:
-                if inspect_feature != 'percentage':
-                    lc = colorline(
-                        all_features[inspect_feature], all_features[feature], ax1, z=all_features['percentage'])
-                    cbar = plt.colorbar(lc)
-                    cbar.set_label(elements[0] + " %", rotation=270)
-
-                else:
-                    ax1.plot(all_features[inspect_feature],
-                             all_features[feature])
-
-                if len(realData) > 0 and feature in realData and inspect_feature in realData:
-                    crystalData, crystalPercentages = filter_masked(
-                        realData[realData['GFA'] == 0][feature], realData[realData['GFA'] == 0][inspect_feature])
-                    ribbonData, ribbonPercentages = filter_masked(
-                        realData[realData['GFA'] == 1][feature], realData[realData['GFA'] == 1][inspect_feature])
-                    bmgData, bmgPercentages = filter_masked(
-                        realData[realData['GFA'] == 2][feature], realData[realData['GFA'] == 2][inspect_feature])
-
-                    plotted = False
-                    if len(crystalData) > 0:
-                        if len(ribbonData) > 0 or len(bmgData) > 0:
-                            ax1.scatter(crystalPercentages, crystalData,
-                                        marker="s", label="Crystal", edgecolors='k', zorder=20)
-                            plotted = True
-                    if len(ribbonData) > 0:
-                        ax1.scatter(ribbonPercentages, ribbonData,
-                                    marker="D", label="Ribbon", edgecolors='k', zorder=20)
-                        plotted = True
-                    if len(bmgData) > 0:
-                        ax1.scatter(bmgPercentages, bmgData,
-                                    marker="o", label="BMG", edgecolors='k', zorder=20)
-                        plotted = True
-
-                    if plotted:
-                        ax1.legend(loc="best")
-
-            ax1.autoscale()
-            if inspect_feature == 'percentage':
-                ax1.xaxis.set_major_locator(ticker.MultipleLocator(10))
-
-                ax2 = ax1.twiny()
-                ax2.set_xticks(ax1.get_xticks())
-                ax2.set_xbound(ax1.get_xbound())
-                ax2.set_xticklabels([int(100 - x) for x in ax1.get_xticks()])
-
-                ax1.set_xlabel(elements[0] + " %")
-                ax2.set_xlabel(elements[1] + " %")
-                ax2.grid(False)
-
-            else:
-                ax1.set_xlabel(features.prettyName(inspect_feature))
-
-            if feature in features.units:
-                ax1.set_ylabel(features.prettyName(feature) +
-                               ' (' + features.units[feature] + ')')
-            elif feature == 'GFA':
-                ax1.set_ylabel("GFA Classification Confidence")
-            else:
-                ax1.set_ylabel(features.prettyName(feature))
-
-            plt.tight_layout()
-
-            if feature in cb.conf.targets:
-                plt.savefig(binary_dir+'/'+inspect_feature +
-                            "/predictions/" + feature + ".png")
-            else:
-                plt.savefig(binary_dir+'/'+inspect_feature +
-                            "/features/" + feature + ".png")
-
-            plt.close()
-            plt.cla()
-            plt.clf()
-
-
 def plot_quaternary(elements, model, onlyPredictions=False, originalData=None, additionalFeatures=[]):
     if not os.path.exists(cb.conf.image_directory + "compositions"):
         os.makedirs(cb.conf.image_directory + "compositions")
@@ -752,7 +580,7 @@ def plot_quaternary(elements, model, onlyPredictions=False, originalData=None, a
         elements[:3], model, originalData, quaternary=[elements[3], percentages[0]], additionalFeatures=additionalFeatures)
     for feature in all_features.columns:
         trueFeatureName = feature.split(
-            '_linearMix')[0].split('_discrepancy')[0]
+            '_linearmix')[0].split('_discrepancy')[0]
         if onlyPredictions and feature not in cb.conf.targets and trueFeatureName not in additionalFeatures:
             continue
         if feature not in heatmaps:
@@ -1017,7 +845,7 @@ def plot_ternary(elements, model, onlyPredictions=False,
 
     for feature in all_features.columns:
         trueFeatureName = feature.split(
-            '_linearMix')[0].split('_discrepancy')[0]
+            '_linearmix')[0].split('_discrepancy')[0]
         if onlyPredictions and feature not in cb.conf.targets and trueFeatureName not in additionalFeatures:
             continue
         if feature not in cb.conf.targets and os.path.exists(
@@ -1162,7 +990,7 @@ def plot_distributions(data):
 
         ax1 = plt.subplot(311)
 
-        crystalData = filter_masked(data[data['GFA'] == 0][feature])
+        crystalData = features.filter_masked(data[data['GFA'] == 0][feature])
         bins = "auto"
         if(len(crystalData) == 0):
             bins = 1
@@ -1173,7 +1001,7 @@ def plot_distributions(data):
         ax1.tick_params(left=False)
         ax1.set_title('Crystals')
 
-        ribbonData = filter_masked(data[data['GFA'] == 1][feature])
+        ribbonData = features.filter_masked(data[data['GFA'] == 1][feature])
         bins = "auto"
         if(len(ribbonData) == 0):
             bins = 1
@@ -1184,7 +1012,7 @@ def plot_distributions(data):
         ax2.tick_params(left=False)
         ax2.set_title('Ribbons')
 
-        bmgData = filter_masked(data[data['GFA'] == 2][feature])
+        bmgData = features.filter_masked(data[data['GFA'] == 2][feature])
         bins = "auto"
         if(len(bmgData) == 0):
             bins = 1
@@ -1217,7 +1045,7 @@ def plot_distributions(data):
         plt.clf()
         plt.close()
 
-        plt.hist(filter_masked(data[feature]), bins=25)
+        plt.hist(features.filter_masked(data[feature]), bins=25)
         plt.xlabel(label)
         plt.ylabel('Count')
         # plt.grid(alpha=.4)
