@@ -8,6 +8,7 @@ from . import features
 from . import models
 from . import metrics
 from . import kfolds
+from . import permutation
 
 conf = None
 
