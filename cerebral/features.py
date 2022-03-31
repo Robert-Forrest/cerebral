@@ -100,7 +100,9 @@ def calculate_features(
     for additionalFeature in additionalFeatures:
         actualFeature = additionalFeature.split(
             "_linearmix")[0].split('_deviation')[0]
-        if actualFeature not in basicFeatures and actualFeature not in complexFeatures:
+        if (actualFeature not in basicFeatures
+            and actualFeature not in complexFeatures
+                and actualFeature not in cb.conf.target_names):
             basicFeatures.append(actualFeature)
 
     if len(requiredFeatures) > 0:
@@ -426,7 +428,12 @@ def calculate_features(
         for feature in data.columns:
             trueFeatureName = feature.split(
                 '_linearmix')[0].split('_deviation')[0]
-            if feature not in requiredFeatures and feature != 'composition' and feature not in cb.conf.target_names and trueFeatureName not in additionalFeatures:
+
+            if (feature not in requiredFeatures
+                and feature != 'composition'
+                and feature not in cb.conf.target_names
+                and feature not in additionalFeatures
+                    and trueFeatureName not in additionalFeatures):
                 print("Dropping", feature)
                 data = data.drop(feature, axis='columns')
 
