@@ -76,12 +76,15 @@ def prettyName(feature):
     else:
         name = ""
         featureParts = feature.split('_')
-        if len(featureParts) > 1:
-            if featureParts[-1] == 'linearmix':
-                name = r'$\Sigma$ '
-            elif featureParts[-1] == 'deviation':
-                name = r'$\delta$ '
-        name += " ".join(featureParts[0:-1])
+        if 'linearmix' in feature or 'deviation' in feature:
+            if len(featureParts) > 1:
+                if featureParts[-1] == 'linearmix':
+                    name = r'$\Sigma$ '
+                elif featureParts[-1] == 'deviation':
+                    name = r'$\delta$ '
+            name += ' '.join(word.title() for word in featureParts[0:-1])
+        else:
+            name += ' '.join(word.title() for word in featureParts)
         return name
 
 
@@ -94,9 +97,11 @@ def calculate_features(
     basicFeatures = cb.conf.basicFeatures
     complexFeatures = cb.conf.complexFeatures
 
-    for additional in additionalFeatures:
-        if additional not in basicFeatures and additional not in complexFeatures:
-            basicFeatures.append(additional)
+    for additionalFeature in additionalFeatures:
+        actualFeature = additionalFeature.split(
+            "_linearmix")[0].split('_deviation')[0]
+        if actualFeature not in basicFeatures and actualFeature not in complexFeatures:
+            basicFeatures.append(actualFeature)
 
     if len(requiredFeatures) > 0:
         dropCorrelatedFeatures = False
@@ -131,7 +136,7 @@ def calculate_features(
         complexFeatureValues[feature] = []
 
     for feature in cb.conf.targets:
-        if(feature.type == 'categorical'):
+        if(feature.type == 'categorical' and feature.name in data.columns):
             data[feature.name] = data[feature.name].map(
                 {feature.classes[i]: i for i in range(len(feature.classes))}
             )
