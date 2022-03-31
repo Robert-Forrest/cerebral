@@ -20,7 +20,7 @@ def setup(config="config.yaml"):
     if not os.path.exists('output'):
         os.makedirs('output')
 
-    model_name = conf.get('model_name', conf.get('task'))
+    model_name = conf.get('model_name', conf.task)
     if conf.get("output_directory", None) is None:
         conf.output_directory = 'output/' + model_name
 
