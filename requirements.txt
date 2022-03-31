@@ -1,0 +1,15 @@
+adjustText==0.7.3
+elementy==0.0.5
+kt_legacy==1.0.4
+matplotlib==3.5.1
+metallurgy==0.0.4
+metallurgy.egg==info
+numpy==1.22.3
+omegaconf==2.1.1
+pandas==1.4.1
+scikit_learn==1.0.2
+scipy==1.8.0
+seaborn==0.11.2
+setuptools==59.4.0
+tensorflow==2.8.0
+pydot
