@@ -222,7 +222,7 @@ def compile_and_fit(train_features, train_labels, sampleWeight,
     model = build_model(
         train_features,
         train_labels,
-        num_shared_layers=3,  # 7,
+        num_shared_layers=3,
         num_specific_layers=5,
         units_per_layer=64,
         regularizer='l2',
@@ -338,26 +338,26 @@ def evaluate_model(model, train_ds, train_labels, test_ds=None,
     train_predictions = []
     test_predictions = []
 
-    predictionNames = getModelPredictionFeatures(model)
+    prediction_names = get_model_prediction_features(model)
 
     train_predictions = model.predict(train_ds)
 
-    if len(predictionNames) == 1:
-        if cb.conf.targets[cb.conf.target_names.index(predictionNames[0])].type == 'numerical':
+    if len(prediction_names) == 1:
+        if cb.conf.targets[cb.conf.target_names.index(prediction_names[0])].type == 'numerical':
             train_predictions = [train_predictions.flatten()]
     else:
         for i in range(len(train_predictions)):
-            if cb.conf.targets[cb.conf.target_names.index(predictionNames[i])].type == 'numerical':
+            if cb.conf.targets[cb.conf.target_names.index(prediction_names[i])].type == 'numerical':
                 train_predictions[i] = train_predictions[i].flatten()
 
     if test_ds:
         test_predictions = model.predict(test_ds)
-        if len(predictionNames) == 1:
-            if cb.conf.targets[cb.conf.target_names.index(predictionNames[0])].type == 'numerical':
+        if len(prediction_names) == 1:
+            if cb.conf.targets[cb.conf.target_names.index(prediction_names[0])].type == 'numerical':
                 test_predictions = [test_predictions.flatten()]
         else:
             for i in range(len(test_predictions)):
-                if cb.conf.targets[cb.conf.target_names.index(predictionNames[i])].type == 'numerical':
+                if cb.conf.targets[cb.conf.target_names.index(prediction_names[i])].type == 'numerical':
                     test_predictions[i] = test_predictions[i].flatten()
 
     if plot:
@@ -388,8 +388,47 @@ def evaluate_model(model, train_ds, train_labels, test_ds=None,
         return train_predictions
 
 
-def getModelPredictionFeatures(model):
+def get_model_prediction_features(model):
     predictions = []
     for node in model.outputs:
-        predictions.append(node.name.split('/')[0])
+        split_name = node.name.split('/')
+
+        if 'Softmax' in split_name[1]:
+            dtype = 'categorical'
+        else:
+            dtype = 'numerical'
+
+        predictions.append({
+            'name': split_name[0],
+            'type': dtype
+        })
+
+    return predictions
+
+
+def get_model_input_features(model):
+    inputs = []
+    for node in model.inputs:
+        inputs.append(node.name.split('/')[0])
+    return inputs
+
+
+def predict(model, alloys):
+
+    input_features = get_model_input_features(model)
+    prediction_features = get_model_prediction_features(model)
+
+    data = features.calculate_features(alloys, model=model)
+
+    raw_predictions = model.predict(
+        features.df_to_dataset(data, prediction_features))
+
+    predictions = {}
+    for i in range(len(raw_predictions)):
+        predictions[prediction_features[i]['name']] = raw_predictions[i]
+
+        if prediction_features[i]['type'] == 'numerical':
+            predictions[prediction_features[i]['name']
+                        ] = predictions[prediction_features[i]['name']].flatten()
+
     return predictions

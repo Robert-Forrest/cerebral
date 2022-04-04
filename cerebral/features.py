@@ -11,12 +11,15 @@ from sklearn.feature_selection import VarianceThreshold  # pylint: disable=impor
 from sklearn import preprocessing
 from sklearn.utils.class_weight import compute_class_weight
 from decimal import Decimal
+from collections.abc import Iterable
 
 import elementy
 import cerebral as cb
 import metallurgy as mg
 
+from . import models
 from . import plots
+
 
 maskValue = -1
 
@@ -90,20 +93,55 @@ def prettyName(feature):
 
 def calculate_features(
         data,
+        prediction_targets=[],
         dropCorrelatedFeatures=True, plot=False,
         additionalFeatures=[], requiredFeatures=[],
-        merge_duplicates=True):
+        merge_duplicates=True, model=None):
 
-    basicFeatures = cb.conf.basicFeatures
-    complexFeatures = cb.conf.complexFeatures
+    if not isinstance(data, pd.DataFrame):
+        if not isinstance(data, Iterable) and not isinstance(data, (str, dict)):
+            data = [data]
+
+        parsed_data = []
+        for i in range(len(data)):
+            alloy = data[i]
+            if not isinstance(data[i], mg.Alloy):
+                alloy = mg.Alloy(data[i])
+            parsed_data.append(alloy.to_string())
+
+        data = pd.DataFrame(parsed_data, columns=['composition'])
+
+    if model is not None:
+        dropCorrelatedFeatures = False
+
+        targets = models.get_model_prediction_features(model)
+
+        input_features = models.get_model_input_features(model)
+        basic_features = []
+        complex_features = []
+
+        for feature in input_features:
+            actual_feature = feature.split(
+                "_linearmix")[0].split('_deviation')[0]
+
+            if '_linearmix' in feature or '_deviation' in feature:
+                if actual_feature not in basic_features:
+                    basic_features.append(actual_feature)
+            else:
+                if feature not in complex_features:
+                    complex_features.append(feature)
+
+    else:
+        basic_features = cb.conf.basic_features
+        complex_features = cb.conf.complex_features
 
     for additionalFeature in additionalFeatures:
-        actualFeature = additionalFeature.split(
+        actual_feature = additionalFeature.split(
             "_linearmix")[0].split('_deviation')[0]
-        if (actualFeature not in basicFeatures
-            and actualFeature not in complexFeatures
-                and actualFeature not in cb.conf.target_names):
-            basicFeatures.append(actualFeature)
+        if (actual_feature not in basic_features
+            and actual_feature not in complex_features
+                and actual_feature not in cb.conf.target_names):
+            basic_features.append(actual_feature)
 
     if len(requiredFeatures) > 0:
         dropCorrelatedFeatures = False
@@ -111,64 +149,65 @@ def calculate_features(
         for feature in requiredFeatures:
 
             if "_linearmix" in feature:
-                actualFeature = feature.split("_linearmix")[0]
-                if actualFeature not in basicFeatures and actualFeature not in complexFeatures and feature not in complexFeatures:
-                    basicFeatures.append(actualFeature)
+                actual_feature = feature.split("_linearmix")[0]
+                if actual_feature not in basic_features and actual_feature not in complex_features and feature not in complex_features:
+                    basic_features.append(actual_feature)
 
             elif "_deviation" in feature:
-                actualFeature = feature.split("_deviation")[0]
-                if actualFeature not in basicFeatures and actualFeature not in complexFeatures and feature not in complexFeatures:
-                    basicFeatures.append(actualFeature)
+                actual_feature = feature.split("_deviation")[0]
+                if actual_feature not in basic_features and actual_feature not in complex_features and feature not in complex_features:
+                    basic_features.append(actual_feature)
 
             else:
-                if feature not in complexFeatures:
-                    complexFeatures.append(feature)
+                if feature not in complex_features:
+                    complex_features.append(feature)
 
-    featureValues = {}
-    complexFeatureValues = {}
+    feature_values = {}
+    complex_feature_values = {}
 
-    for feature in basicFeatures:
-        featureValues[feature] = {
+    for feature in basic_features:
+        feature_values[feature] = {
             'linearmix': [],
             'deviation': []
         }
         units[feature + '_deviation'] = "%"
 
-    for feature in complexFeatures:
-        complexFeatureValues[feature] = []
+    for feature in complex_features:
+        complex_feature_values[feature] = []
 
-    for feature in cb.conf.targets:
-        if(feature.type == 'categorical' and feature.name in data.columns):
-            data[feature.name] = data[feature.name].map(
+    for feature in targets:
+        if(feature['type'] == 'categorical' and feature['name'] in data.columns):
+            data[feature['name']] = data[feature['name']].map(
                 {feature.classes[i]: i for i in range(len(feature.classes))}
             )
-            data[feature.name] = data[feature.name].fillna(maskValue)
-            data[feature.name] = data[feature.name].astype(np.int64)
+            data[feature['name']] = data[feature['name']].fillna(maskValue)
+            data[feature['name']] = data[feature['name']].astype(np.int64)
 
     for i, row in data.iterrows():
 
         composition = mg.alloy.parse_composition(row['composition'])
 
-        for feature in basicFeatures:
+        for feature in basic_features:
 
-            if 'linearmix' in featureValues[feature]:
-                featureValues[feature]['linearmix'].append(
+            if 'linearmix' in feature_values[feature]:
+                feature_values[feature]['linearmix'].append(
                     mg.linear_mixture(composition, feature))
 
-            if 'deviation' in featureValues[feature]:
-                featureValues[feature]['deviation'].append(
+            if 'deviation' in feature_values[feature]:
+                feature_values[feature]['deviation'].append(
                     mg.deviation(composition, feature))
 
-        for feature in complexFeatureValues:
-            complexFeatureValues[feature].append(mg.calculate(composition,feature))
+        for feature in complex_feature_values:
+            complex_feature_values[feature].append(
+                mg.calculate(composition, feature))
 
-    for feature in featureValues:
-        for kind in featureValues[feature]:
-            if len(featureValues[feature][kind]) == len(data.index):
-                data[feature + '_' + kind] = featureValues[feature][kind]
-    for feature in complexFeatures:
-        if len(complexFeatureValues[feature]) == len(data.index):
-            data[feature] = complexFeatureValues[feature]
+    for feature in feature_values:
+        for kind in feature_values[feature]:
+            if len(feature_values[feature][kind]) == len(data.index):
+                data[feature + '_' + kind] = feature_values[feature][kind]
+    for feature in complex_features:
+        if len(complex_feature_values[feature]) == len(data.index):
+            data[feature] = complex_feature_values[feature]
 
     data = data.drop_duplicates()
     data = data.fillna(maskValue)
@@ -246,9 +285,9 @@ def calculate_features(
         staticFeatures = []
         varianceCheckData = data.drop('composition', axis='columns')
         for feature in data.columns:
-            if feature in cb.conf.target_names:
+            if feature in targets:
                 varianceCheckData = varianceCheckData.drop(
-                    feature, axis='columns')
+                    feature.name, axis='columns')
 
         quartileDiffusions = {}
         for feature in varianceCheckData.columns:
@@ -354,13 +393,13 @@ def train_test_split(data, trainPercentage=0.75):
     return pd.DataFrame(trainingSet), pd.DataFrame(testSet)
 
 
-def df_to_dataset(dataframe):
+def df_to_dataset(dataframe, targets=[]):
     dataframe = dataframe.copy()
 
     labelNames = []
-    for feature in cb.conf.targets:
-        if feature.name in dataframe.columns:
-            labelNames.append(feature.name)
+    for feature in targets:
+        if feature['name'] in dataframe.columns:
+            labelNames.append(feature['name'])
 
     if len(labelNames) > 0:
         labels = pd.concat([dataframe.pop(x)
@@ -369,10 +408,10 @@ def df_to_dataset(dataframe):
     else:
         ds = tf.data.Dataset.from_tensor_slices(dict(dataframe))
 
-    if cb.conf.get("train", None) is not None:
-        batch_size = cb.conf.train.get('batch_size', 1024)
-    else:
-        batch_size = 1024
+    batch_size = 1024
+    if cb.conf:
+        if cb.conf.get("train", None) is not None:
+            batch_size = cb.conf.train.get('batch_size', batch_size)
 
     ds = ds.batch(batch_size)
     ds = ds.prefetch(batch_size)
@@ -394,22 +433,22 @@ def generate_sample_weights(labels, classFeature, classWeights):
     return np.array(sampleWeight)
 
 
-def create_datasets(data, train=[], test=[]):
+def create_datasets(data, targets, train=[], test=[]):
 
     if (len(train) == 0):
         train = data.copy()
 
-    train_ds = df_to_dataset(train)
+    train_ds = df_to_dataset(train, targets=targets)
     train_features = train.copy()
     train_labels = {}
-    for feature in cb.conf.targets:
-        if feature.name in train_features:
-            train_labels[feature.name] = train_features.pop(feature.name)
+    for feature in targets:
+        if feature['name'] in train_features:
+            train_labels[feature['name']] = train_features.pop(feature['name'])
     train_labels = pd.DataFrame(train_labels)
 
     numCategoricalTargets = 0
     categoricalTarget = None
-    for target in cb.conf.targets:
+    for target in targets:
         if target.type == 'categorical':
             categoricalTarget = target
             numCategoricalTargets += 1
@@ -436,12 +475,13 @@ def create_datasets(data, train=[], test=[]):
         sampleWeight = [1]*len(train_labels)
 
     if len(test) > 0:
-        test_ds = df_to_dataset(test)
+        test_ds = df_to_dataset(test, targets=targets)
         test_features = test.copy()
         test_labels = {}
-        for feature in cb.conf.targets:
-            if feature.name in test_features:
-                test_labels[feature.name] = test_features.pop(feature.name)
+        for feature in targets:
+            if feature['name'] in test_features:
+                test_labels[feature['name']] = test_features.pop(
+                    feature['name'])
         test_labels = pd.DataFrame(test_labels)
 
         if numCategoricalTargets == 1:
