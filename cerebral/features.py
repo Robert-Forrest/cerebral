@@ -54,7 +54,7 @@ def calculate_compositions(data):
                     columns_to_drop.append(column)
                 if row[column] > 0:
                     composition[column] = row[column] / 100.0
-        composition = mg.Alloy(composition)
+        composition = mg.Alloy(composition, rescale=False)
         compositions.append(composition.to_string())
 
     data['composition'] = compositions
@@ -73,27 +73,26 @@ def camelCaseToSentence(string):
 
 
 def prettyName(feature):
+    if cb.conf is not None:
+        if feature in cb.conf.pretty_feature_names:
+            return r'$'+cb.conf.pretty_features[cb.conf.pretty_feature_names.index(feature)].pretty+'$'
 
-    if feature in cb.conf.pretty_feature_names:
-        return r'$'+cb.conf.pretty_features[cb.conf.pretty_feature_names.index(feature)].pretty+'$'
+    name = ""
+    featureParts = feature.split('_')
+    if 'linearmix' in feature or 'deviation' in feature:
+        if len(featureParts) > 1:
+            if featureParts[-1] == 'linearmix':
+                name = r'$\Sigma$ '
+            elif featureParts[-1] == 'deviation':
+                name = r'$\delta$ '
+        name += ' '.join(word.title() for word in featureParts[0:-1])
     else:
-        name = ""
-        featureParts = feature.split('_')
-        if 'linearmix' in feature or 'deviation' in feature:
-            if len(featureParts) > 1:
-                if featureParts[-1] == 'linearmix':
-                    name = r'$\Sigma$ '
-                elif featureParts[-1] == 'deviation':
-                    name = r'$\delta$ '
-            name += ' '.join(word.title() for word in featureParts[0:-1])
-        else:
-            name += ' '.join(word.title() for word in featureParts)
-        return name
+        name += ' '.join(word.title() for word in featureParts)
+    return name
 
 
 def calculate_features(
         data,
-        prediction_targets=[],
         dropCorrelatedFeatures=True, plot=False,
         additionalFeatures=[], requiredFeatures=[],
         merge_duplicates=True, model=None):
@@ -106,15 +105,17 @@ def calculate_features(
         for i in range(len(data)):
             alloy = data[i]
             if not isinstance(data[i], mg.Alloy):
-                alloy = mg.Alloy(data[i])
+                alloy = mg.Alloy(data[i], rescale=False)
             parsed_data.append(alloy.to_string())
 
         data = pd.DataFrame(parsed_data, columns=['composition'])
 
     if model is not None:
         dropCorrelatedFeatures = False
+        merge_duplicates = False
 
         targets = models.get_model_prediction_features(model)
+        target_names = [target['name'] for target in targets]
 
         input_features = models.get_model_input_features(model)
         basic_features = []
@@ -134,13 +135,15 @@ def calculate_features(
     else:
         basic_features = cb.conf.basic_features
         complex_features = cb.conf.complex_features
+        targets = cb.conf.targets
+        target_names = cb.conf.target_names
 
     for additionalFeature in additionalFeatures:
         actual_feature = additionalFeature.split(
             "_linearmix")[0].split('_deviation')[0]
         if (actual_feature not in basic_features
             and actual_feature not in complex_features
-                and actual_feature not in cb.conf.target_names):
+                and actual_feature not in target_names):
             basic_features.append(actual_feature)
 
     if len(requiredFeatures) > 0:
@@ -209,19 +212,21 @@ def calculate_features(
         if len(complex_feature_values[feature]) == len(data.index):
             data[feature] = complex_feature_values[feature]
 
-    data = data.drop_duplicates()
     data = data.fillna(maskValue)
 
     if merge_duplicates:
+        data = data.drop_duplicates()
         to_drop = []
         seen_compositions = []
         duplicate_compositions = {}
         for i, row in data.iterrows():
-            composition = mg.Alloy(row['composition']).to_string()
+            alloy = mg.Alloy(row['composition'], rescale=False)
+            composition = alloy.to_string()
 
-            if(not mg.alloy.valid_composition(row['composition'])):
+            if(abs(1-sum(alloy.composition.values())) > 0.01):
                 print("Invalid composition:", row['composition'], i)
                 to_drop.append(i)
+
             elif(composition in seen_compositions):
                 if composition not in duplicate_compositions:
                     duplicate_compositions[composition] = [
@@ -235,7 +240,8 @@ def calculate_features(
 
         to_drop = []
         for i, row in data.iterrows():
-            composition = mg.Alloy(row['composition']).to_string()
+            composition = mg.Alloy(
+                row['composition'], rescale=False).to_string()
 
             if composition in duplicate_compositions:
                 to_drop.append(i)
@@ -285,9 +291,9 @@ def calculate_features(
         staticFeatures = []
         varianceCheckData = data.drop('composition', axis='columns')
         for feature in data.columns:
-            if feature in targets:
+            if feature in [t['name'] for t in targets]:
                 varianceCheckData = varianceCheckData.drop(
-                    feature.name, axis='columns')
+                    feature, axis='columns')
 
         quartileDiffusions = {}
         for feature in varianceCheckData.columns:
@@ -351,9 +357,10 @@ def calculate_features(
 
             if (feature not in requiredFeatures
                 and feature != 'composition'
-                and feature not in cb.conf.target_names
+                and feature not in target_names
                 and feature not in additionalFeatures
                     and trueFeatureName not in additionalFeatures):
+
                 print("Dropping", feature)
                 data = data.drop(feature, axis='columns')
 
