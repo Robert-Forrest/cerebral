@@ -415,7 +415,6 @@ def get_model_input_features(model):
 
 def predict(model, alloys):
 
-    input_features = get_model_input_features(model)
     prediction_features = get_model_prediction_features(model)
 
     data = features.calculate_features(alloys, model=model)
