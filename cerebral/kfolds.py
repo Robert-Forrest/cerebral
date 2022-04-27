@@ -98,7 +98,7 @@ def kfolds(originalData, save=False, plot=False):
         test_compositions = test_tmp.pop('composition')
 
         train_ds, test_ds, train_features, test_features, train_labels, test_labels, sampleWeight, sampleWeightTest = features.create_datasets(
-            originalData, train=train_tmp, test=test_tmp)
+            originalData, cb.conf.targets, train=train_tmp, test=test_tmp)
 
         model = models.train_model(train_features, train_labels,
                                    sampleWeight,
@@ -178,7 +178,7 @@ def kfoldsEnsemble(originalData):
     compositions = originalData.pop('composition')
 
     train_ds, train_features, train_labels, sampleWeight = features.create_datasets(
-        originalData)
+        originalData, cb.conf.targets)
 
     inputs = models.build_input_layers(train_features)
     outputs = []
