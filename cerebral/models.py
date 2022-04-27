@@ -338,7 +338,8 @@ def evaluate_model(model, train_ds, train_labels, test_ds=None,
     train_predictions = []
     test_predictions = []
 
-    prediction_names = get_model_prediction_features(model)
+    prediction_names = [f['name']
+                        for f in get_model_prediction_features(model)]
 
     train_predictions = model.predict(train_ds)
 
