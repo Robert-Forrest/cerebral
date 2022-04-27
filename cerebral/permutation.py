@@ -9,6 +9,7 @@ from . import models
 from . import metrics
 from . import io
 
+
 def permutation(postprocess=None):
 
     numPermutations = cb.conf.get("permutations", 5)
@@ -16,7 +17,7 @@ def permutation(postprocess=None):
     open(cb.conf.output_directory + '/permutedFeatures.dat', 'w')
 
     model = models.load(cb.conf.output_directory+'/model')
-    originalData = io.load_data(model=model,plot=False,
+    originalData = io.load_data(model=model, plot=False,
                                 postprocess=postprocess)
 
     permutationImportance = {}
