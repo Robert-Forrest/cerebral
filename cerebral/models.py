@@ -62,6 +62,9 @@ def setup_losses_and_metrics():
                 feature.name
             ] = cb.loss.masked_sparse_categorical_crossentropy
 
+    if len(losses) != len(cb.conf.targets):
+        raise Exception("Number of losses does not match number of targets!")
+
     return losses, feature_metrics
 
 
@@ -340,14 +343,65 @@ def load(path):
     )
 
 
+def train_model(
+    data,
+    maxEpochs=1000,
+    plot=False,
+    model_name=None,
+):
+    train, test = cb.features.train_test_split(data)
+
+    train_compositions = train.pop("composition")
+    test_compositions = test.pop("composition")
+
+    (
+        train_ds,
+        test_ds,
+        train_features,
+        test_features,
+        train_labels,
+        test_labels,
+        sample_weight,
+        sample_weight_test,
+    ) = cb.features.create_datasets(data, cb.conf.targets, train, test)
+
+    train_data = {
+        "compositions": train_compositions,
+        "dataset": train_ds,
+        "labels": train_labels,
+    }
+
+    test_data = {
+        "compositions": test_compositions,
+        "dataset": test_ds,
+        "labels": test_labels,
+    }
+
+    model, history = compile_and_fit(
+        train_features,
+        train_labels,
+        sample_weight,
+        test_features,
+        test_labels,
+        sample_weight_test,
+        maxEpochs,
+        plot,
+        model_name,
+    )
+
+    return model, history, train_data, test_data
+
+
 def compile_and_fit(
     train_features,
     train_labels,
-    sampleWeight,
+    sample_weight,
     test_features=None,
     test_labels=None,
-    sampleWeight_test=None,
+    sample_weight_test=None,
     maxEpochs=1000,
+    plot=False,
+    model_name=None,
 ):
     """Compile a model, and perform training.
 
@@ -364,36 +418,40 @@ def compile_and_fit(
         regularizer_rate=0.001,
         dropout=0.1,
         learning_rate=1e-2,
-        # learning_rate=tf.keras.optimizers.schedules.InverseTimeDecay(
-        #     0.01,
-        #     decay_steps=1,
-        #     decay_rate=0.01,
-        #     staircase=False),
         activation="elu",
-        max_norm=5.0,
+        max_norm=3.0,
         ensemble_size=1,
     )
 
-    return fit(
+    model, history = fit(
         model,
         train_features,
         train_labels,
-        sampleWeight,
+        sample_weight,
         test_features,
         test_labels,
-        sampleWeight_test,
+        sample_weight_test,
         maxEpochs,
     )
+
+    if plot:
+        cb.plots.plot_training(history, model_name=model_name)
+        if model_name is not None:
+            save(model, cb.conf.output_directory + "/model_" + str(model_name))
+        else:
+            save(model, cb.conf.output_directory + "/model")
+
+    return model, history
 
 
 def fit(
     model,
     train_features,
     train_labels,
-    sampleWeight,
+    sample_weight,
     test_features=None,
     test_labels=None,
-    sampleWeight_test=None,
+    sample_weight_test=None,
     maxEpochs=1000,
 ):
     """Perform training of a model to data.
@@ -404,18 +462,18 @@ def fit(
     patience = 100
     min_delta = 0.001
 
-    xTrain = {}
+    x_train = {}
     for feature in train_features:
-        xTrain[feature] = train_features[feature]
+        x_train[feature] = train_features[feature]
 
-    yTrain = {}
+    y_train = {}
     for feature in cb.conf.targets:
         if feature.name in train_labels:
-            yTrain[feature.name] = train_labels[feature.name]
+            y_train[feature.name] = train_labels[feature.name]
 
     monitor = "loss"
 
-    testData = None
+    test_data = None
     if test_features is not None:
         xTest = {}
         for feature in test_features:
@@ -426,80 +484,44 @@ def fit(
             if feature.name in test_labels:
                 yTest[feature.name] = test_labels[feature.name]
 
-        testData = (xTest, yTest, sampleWeight_test)
+        test_data = (xTest, yTest, sample_weight_test)
 
         monitor = "val_loss"
 
     history = model.fit(
-        x=xTrain,
-        y=yTrain,
-        batch_size=cb.conf.train.get("batch_size", 1024),
-        epochs=maxEpochs,
-        callbacks=[
-            tf.keras.callbacks.EarlyStopping(
-                monitor=monitor,
-                patience=patience,
-                min_delta=min_delta,
-                mode="auto",
-                restore_best_weights=True,
-            ),
-            tf.keras.callbacks.ReduceLROnPlateau(
-                monitor=monitor,
-                factor=0.5,
-                patience=patience // 3,
-                mode="auto",
-                min_delta=min_delta * 10,
-                cooldown=patience // 4,
-                min_lr=0,
-            ),
-            tf.keras.callbacks.TensorBoard(
-                log_dir=cb.conf.output_directory
-                + "/logs/fit/"
-                + datetime.datetime.now().strftime("%Y%m%d-%H%M%S"),
-                histogram_freq=1,
-            ),
-        ],
-        sample_weight=sampleWeight,
-        validation_data=testData,
-        verbose=2,
+        x=x_train,
+        y=y_train,
+        # batch_size=cb.conf.train.get("batch_size", 1024),
+        # epochs=maxEpochs,
+        # callbacks=[
+        #     tf.keras.callbacks.EarlyStopping(
+        #         monitor=monitor,
+        #         patience=patience,
+        #         min_delta=min_delta,
+        #         mode="auto",
+        #         restore_best_weights=True,
+        #     ),
+        #     tf.keras.callbacks.ReduceLROnPlateau(
+        #         monitor=monitor,
+        #         factor=0.5,
+        #         patience=patience // 3,
+        #         mode="auto",
+        #         min_delta=min_delta * 10,
+        #         cooldown=patience // 4,
+        #         min_lr=0,
+        #     ),
+        #     tf.keras.callbacks.TensorBoard(
+        #         log_dir=cb.conf.output_directory
+        #         + "/logs/fit/"
+        #         + datetime.datetime.now().strftime("%Y%m%d-%H%M%S"),
+        #         histogram_freq=1,
+        #     ),
+        # ],
+        # sample_weight=sample_weight,
+        # validation_data=test_data,
+        # verbose=2,
     )
     return model, history
-
-
-def train_model(
-    train_features,
-    train_labels,
-    sampleWeight,
-    test_features=None,
-    test_labels=None,
-    sampleWeight_test=None,
-    plot=True,
-    maxEpochs=1000,
-    model_name=None,
-):
-    """Helper function which compiles and trains a model, and can also plot
-    training metrics.
-
-    :group: models
-    """
-
-    model, history = compile_and_fit(
-        train_features,
-        train_labels,
-        sampleWeight,
-        test_features=test_features,
-        test_labels=test_labels,
-        sampleWeight_test=sampleWeight_test,
-        maxEpochs=maxEpochs,
-    )
-
-    if plot:
-        cb.plots.plot_training(history, model_name=model_name)
-        if model_name is not None:
-            save(model, cb.conf.output_directory + "/model_" + str(model_name))
-        else:
-            save(model, cb.conf.output_directory + "/model")
-    return model
 
 
 def evaluate_model(
