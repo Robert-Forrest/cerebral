@@ -11,16 +11,19 @@ from . import io
 from . import features
 from . import models
 from . import metrics
+from . import loss
+from . import layers
 from . import kfolds
 from . import permutation
 from . import plots
 from . import tuning
-
 from . import GFA
 
 __all__ = [
     "features",
     "models",
+    "layers",
+    "loss",
     "metrics",
     "kfolds",
     "permutation",
@@ -82,16 +85,27 @@ def setup(user_config: dict = {}):
 
         for i in range(len(conf.targets)):
             if "type" not in conf.targets[i]:
-                conf.targets[i].type = "numerical"
+                conf.targets[i]["type"] = "numerical"
             if "weight" not in conf.targets[i]:
                 conf.targets[i].weight = 1.0
             if "loss" not in conf.targets[i]:
-                conf.targets[i].weight = "RMSE"
+                conf.targets[i].loss = "MSE"
 
     else:
         raise Exception("No targets set!")
 
-    if "pretty_feature_names" in conf:
+    if "input_features" not in conf:
+        raise Exception("No input features set!")
+
+    if "pretty_features" in conf:
         conf.pretty_feature_names = [f.name for f in conf.pretty_features]
+    else:
+        conf.pretty_features = []
+        conf.pretty_feature_names = []
+
+    if "train" not in conf:
+        conf.train = OmegaConf.create({})
+    if "max_epochs" not in conf.train:
+        conf.train.max_epochs = 100
 
     features.setup_units()
