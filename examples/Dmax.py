@@ -2,15 +2,14 @@ import cerebral as cb
 
 cb.setup(
     {
-        "targets": [{"name": "Dmax"}],
-        "input_features": ["mass"],
+        "targets": [{"name": "Dmax", "loss": "Huber"}],
         "data": {"files": ["data.xls"]},
     }
 )
 
 data = cb.io.load_data(postprocess=cb.GFA.ensure_default_values_glass)
 
-model, history, train_data, test_data = cb.models.train_model(data)
+model, history, train_data, test_data = cb.models.train_model(data, plot=True)
 
 train_predictions = cb.models.evaluate_model(
     model,
