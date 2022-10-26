@@ -484,42 +484,42 @@ def fit(
             if feature.name in test_labels:
                 yTest[feature.name] = test_labels[feature.name]
 
-        test_data = (xTest, yTest, sample_weight_test)
+        test_data = (xTest, yTest)  # , sample_weight_test)
 
         monitor = "val_loss"
 
     history = model.fit(
         x=x_train,
         y=y_train,
-        # batch_size=cb.conf.train.get("batch_size", 1024),
-        # epochs=maxEpochs,
-        # callbacks=[
-        #     tf.keras.callbacks.EarlyStopping(
-        #         monitor=monitor,
-        #         patience=patience,
-        #         min_delta=min_delta,
-        #         mode="auto",
-        #         restore_best_weights=True,
-        #     ),
-        #     tf.keras.callbacks.ReduceLROnPlateau(
-        #         monitor=monitor,
-        #         factor=0.5,
-        #         patience=patience // 3,
-        #         mode="auto",
-        #         min_delta=min_delta * 10,
-        #         cooldown=patience // 4,
-        #         min_lr=0,
-        #     ),
-        #     tf.keras.callbacks.TensorBoard(
-        #         log_dir=cb.conf.output_directory
-        #         + "/logs/fit/"
-        #         + datetime.datetime.now().strftime("%Y%m%d-%H%M%S"),
-        #         histogram_freq=1,
-        #     ),
-        # ],
+        batch_size=cb.conf.train.get("batch_size", 1024),
+        epochs=maxEpochs,
+        callbacks=[
+            tf.keras.callbacks.EarlyStopping(
+                monitor=monitor,
+                patience=patience,
+                min_delta=min_delta,
+                mode="auto",
+                restore_best_weights=True,
+            ),
+            tf.keras.callbacks.ReduceLROnPlateau(
+                monitor=monitor,
+                factor=0.5,
+                patience=patience // 3,
+                mode="auto",
+                min_delta=min_delta * 10,
+                cooldown=patience // 4,
+                min_lr=0,
+            ),
+            tf.keras.callbacks.TensorBoard(
+                log_dir=cb.conf.output_directory
+                + "/logs/fit/"
+                + datetime.datetime.now().strftime("%Y%m%d-%H%M%S"),
+                histogram_freq=1,
+            ),
+        ],
         # sample_weight=sample_weight,
-        # validation_data=test_data,
-        # verbose=2,
+        validation_data=test_data,
+        verbose=2,
     )
     return model, history
 
