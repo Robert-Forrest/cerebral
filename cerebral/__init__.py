@@ -5,6 +5,7 @@ A tool for creating multi-output deep ensemble neural networks with TensorFlow.
 
 import os
 
+import metallurgy as mg
 from omegaconf import OmegaConf
 
 from . import io
@@ -33,7 +34,7 @@ __all__ = [
     "GFA",
 ]
 
-conf = None
+conf = OmegaConf.create({})
 
 
 def setup(user_config: dict = {}):
@@ -95,7 +96,7 @@ def setup(user_config: dict = {}):
         raise Exception("No targets set!")
 
     if "input_features" not in conf:
-        raise Exception("No input features set!")
+        conf.input_features = mg.get_all_properties()
 
     if "pretty_features" in conf:
         conf.pretty_feature_names = [f.name for f in conf.pretty_features]
