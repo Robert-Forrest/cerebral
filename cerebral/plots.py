@@ -1,38 +1,28 @@
+"""Module providing plotting functionality."""
+
 import os
 
-import cerebral as cb
+import pandas as pd
 import metallurgy as mg
 from sklearn.metrics import ConfusionMatrixDisplay, confusion_matrix
-import matplotlib.pyplot as plt
 import numpy as np
 from adjustText import adjust_text
-from sklearn.preprocessing import StandardScaler
 from scipy.cluster import hierarchy
-from sklearn import (
-    manifold,
-    decomposition,
-    random_projection,
-    discriminant_analysis,
-    neighbors,
-    cluster,
-)
-import seaborn as sns  # pylint: disable=import-error
-import matplotlib.ticker as ticker  # pylint: disable=import-error
-import matplotlib.pyplot as plt  # pylint: disable=import-error
-import pandas as pd  # pylint: disable=import-error
-import matplotlib as mpl  # pylint: disable=import-error
-from mpl_toolkits import axes_grid1
-import matplotlib.collections as mcoll
+import seaborn as sns
+import matplotlib.pyplot as plt
+import matplotlib as mpl
 
-from . import metrics
-from . import features
+import cerebral as cb
 
-mpl.use("Agg")
-plt.style.use("ggplot")
 plt.rc("axes", axisbelow=True)
 
 
 def plot_training(history, model_name=None):
+    """Plot metrics over the course of training.
+
+    :group: plots
+
+    """
 
     if not os.path.exists(cb.conf.image_directory):
         os.makedirs(cb.conf.image_directory)
@@ -94,6 +84,11 @@ def plot_results_regression(
     test_errorbars=None,
     model_name=None,
 ):
+    """Plot true versus prediction for regression outputs.
+
+    :group: plots
+
+    """
 
     image_directory = cb.conf.image_directory
     if model_name is not None:
@@ -105,25 +100,28 @@ def plot_results_regression(
     for feature in train_labels:
         if feature != "GFA":
 
-            tmp_train_labels, tmp_train_predictions = features.filter_masked(
+            (
+                tmp_train_labels,
+                tmp_train_predictions,
+            ) = cb.features.filter_masked(
                 train_labels[feature], train_predictions[i]
             )
             if train_compositions is not None:
-                _, tmp_train_compositions = features.filter_masked(
+                _, tmp_train_compositions = cb.features.filter_masked(
                     train_labels[feature], train_compositions
                 )
             if train_errorbars is not None:
-                _, tmp_train_errorbars = features.filter_masked(
+                _, tmp_train_errorbars = cb.features.filter_masked(
                     train_labels[feature], train_errorbars[i]
                 )
 
-            train_R_sq = metrics.calc_R_sq(
+            train_R_sq = cb.metrics.calc_R_sq(
                 tmp_train_labels, tmp_train_predictions
             )
-            train_RMSE = metrics.calc_RMSE(
+            train_RMSE = cb.metrics.calc_RMSE(
                 tmp_train_labels, tmp_train_predictions
             )
-            train_MAE = metrics.calc_MAE(
+            train_MAE = cb.metrics.calc_MAE(
                 tmp_train_labels, tmp_train_predictions
             )
 
@@ -134,25 +132,28 @@ def plot_results_regression(
             abs_test_error = None
 
             if test_labels is not None:
-                tmp_test_labels, tmp_test_predictions = features.filter_masked(
+                (
+                    tmp_test_labels,
+                    tmp_test_predictions,
+                ) = cb.features.filter_masked(
                     test_labels[feature], test_predictions[i]
                 )
                 if test_compositions is not None:
-                    _, tmp_test_compositions = features.filter_masked(
+                    _, tmp_test_compositions = cb.features.filter_masked(
                         test_labels[feature], test_compositions
                     )
                 if test_errorbars is not None:
-                    _, tmp_test_errorbars = features.filter_masked(
+                    _, tmp_test_errorbars = cb.features.filter_masked(
                         test_labels[feature], test_errorbars[i]
                     )
 
-                test_R_sq = metrics.calc_R_sq(
+                test_R_sq = cb.metrics.calc_R_sq(
                     tmp_test_labels, tmp_test_predictions
                 )
-                test_RMSE = metrics.calc_RMSE(
+                test_RMSE = cb.metrics.calc_RMSE(
                     tmp_test_labels, tmp_test_predictions
                 )
-                test_MAE = metrics.calc_MAE(
+                test_MAE = cb.metrics.calc_MAE(
                     tmp_test_labels, tmp_test_predictions
                 )
 
@@ -321,17 +322,17 @@ def plot_results_regression(
 
             plt.xlabel(
                 "True "
-                + features.prettyName(feature)
+                + cb.features.prettyName(feature)
                 + " ("
-                + features.units[feature]
+                + cb.features.units[feature]
                 + ")"
             )
 
             plt.ylabel(
                 "Predicted "
-                + features.prettyName(feature)
+                + cb.features.prettyName(feature)
                 + " ("
-                + features.units[feature]
+                + cb.features.units[feature]
                 + ")"
             )
 
@@ -342,11 +343,11 @@ def plot_results_regression(
                 + "\nRMSE: "
                 + str(round(train_RMSE, 3))
                 + " "
-                + features.units[feature]
+                + cb.features.units[feature]
                 + "\nMAE: "
                 + str(round(train_MAE, 3))
                 + " "
-                + features.units[feature]
+                + cb.features.units[feature]
             )
 
             if test_labels is not None:
@@ -357,13 +358,13 @@ def plot_results_regression(
                     + ", Test: "
                     + str(round(test_R_sq, 3))
                     + "\nRMSE ("
-                    + features.units[feature]
+                    + cb.features.units[feature]
                     + "): Train: "
                     + str(round(train_RMSE, 3))
                     + ", Test: "
                     + str(round(test_RMSE, 3))
                     + "\nMAE ("
-                    + features.units[feature]
+                    + cb.features.units[feature]
                     + "): Train: "
                     + str(round(train_MAE, 3))
                     + ", Test: "
@@ -432,9 +433,9 @@ def plot_results_regression(
 
             # plt.grid(alpha=.4)
             plt.xlabel(
-                features.prettyName(feature)
+                cb.features.prettyName(feature)
                 + " prediction error ("
-                + features.units[feature]
+                + cb.features.units[feature]
                 + ")"
             )
 
@@ -454,6 +455,11 @@ def plot_results_regression(
 
 
 def plot_results_regression_heatmap(train_labels, train_predictions):
+    """Plot true versus prediction heatmaps for multiple regression models.
+
+    :group: plots
+
+    """
 
     i = 0
     for feature in train_labels[0]:
@@ -470,12 +476,12 @@ def plot_results_regression_heatmap(train_labels, train_predictions):
 
             for j in range(len(train_labels)):
 
-                t, p = features.filter_masked(
+                t, p = cb.features.filter_masked(
                     train_labels[j][feature], train_predictions[j][i]
                 )
 
-                MAEs.append(metrics.calc_MAE(t, p))
-                RMSEs.append(metrics.calc_RMSE(t, p))
+                MAEs.append(cb.metrics.calc_MAE(t, p))
+                RMSEs.append(cb.metrics.calc_RMSE(t, p))
 
                 labels.extend(t)
                 predictions.extend(p)
@@ -525,7 +531,7 @@ def plot_results_regression_heatmap(train_labels, train_predictions):
                 + " "
                 + str(round(np.std(RMSEs), 3))
                 + " "
-                + features.units[feature]
+                + cb.features.units[feature]
                 + "\nMAE: "
                 + str(round(np.mean(MAEs), 3))
                 + " "
@@ -533,7 +539,7 @@ def plot_results_regression_heatmap(train_labels, train_predictions):
                 + " "
                 + str(round(np.std(MAEs), 3))
                 + " "
-                + features.units[feature]
+                + cb.features.units[feature]
             )
             ob = mpl.offsetbox.AnchoredText(descriptionStr, loc="upper left")
             ob.patch.set_boxstyle("round,pad=0.,rounding_size=0.2")
@@ -541,16 +547,16 @@ def plot_results_regression_heatmap(train_labels, train_predictions):
 
             plt.xlabel(
                 "True "
-                + features.prettyName(feature)
+                + cb.features.prettyName(feature)
                 + " ("
-                + features.units[feature]
+                + cb.features.units[feature]
                 + ")"
             )
             plt.ylabel(
                 "Predicted "
-                + features.prettyName(feature)
+                + cb.features.prettyName(feature)
                 + " ("
-                + features.units[feature]
+                + cb.features.units[feature]
                 + ")"
             )
 
@@ -578,6 +584,11 @@ def plot_results_classification(
     test_predictions=None,
     model_name=None,
 ):
+    """Plot a confusion matrix for a classifier.
+
+    :group: plots
+
+    """
 
     i = 0
     for feature in train_labels:
@@ -595,28 +606,28 @@ def plot_results_classification(
                 (
                     tmp_train_labels,
                     tmp_train_predictions,
-                ) = features.filter_masked(
+                ) = cb.features.filter_masked(
                     train_labels[feature], train_predictions[i]
                 )
                 if test_labels is not None:
                     (
                         tmp_test_labels,
                         tmp_test_predictions,
-                    ) = features.filter_masked(
+                    ) = cb.features.filter_masked(
                         test_labels[feature], test_predictions[i]
                     )
             else:
                 (
                     tmp_train_labels,
                     tmp_train_predictions,
-                ) = features.filter_masked(
+                ) = cb.features.filter_masked(
                     train_labels[feature], train_predictions
                 )
                 if test_labels is not None:
                     (
                         tmp_test_labels,
                         tmp_test_predictions,
-                    ) = features.filter_masked(
+                    ) = cb.features.filter_masked(
                         test_labels[feature], test_predictions
                     )
 
@@ -747,21 +758,27 @@ def plot_results_classification(
 
                 plt.title(
                     "Accuracy: "
-                    + str(round(metrics.calc_accuracy(labels, predictions), 3))
+                    + str(
+                        round(cb.metrics.calc_accuracy(labels, predictions), 3)
+                    )
                     + " Recall: "
-                    + str(round(metrics.calc_recall(labels, predictions), 3))
+                    + str(
+                        round(cb.metrics.calc_recall(labels, predictions), 3)
+                    )
                     + " Precision: "
                     + str(
-                        round(metrics.calc_precision(labels, predictions), 3)
+                        round(
+                            cb.metrics.calc_precision(labels, predictions), 3
+                        )
                     )
                     + "\nSpecificity: "
                     + str(round(np.mean(specificities), 3))
                     + " F1: "
-                    + str(round(metrics.calc_f1(labels, predictions), 3))
+                    + str(round(cb.metrics.calc_f1(labels, predictions), 3))
                     + "\nInformedness: "
                     + str(
                         round(
-                            metrics.calc_recall(labels, predictions)
+                            cb.metrics.calc_recall(labels, predictions)
                             + np.mean(specificities)
                             - 1,
                             3,
@@ -790,6 +807,12 @@ def plot_results_classification(
 
 
 def plot_multiclass_roc(true, pred, set, image_directory):
+    """Plot a reciever-operator characteristic graph for multiple classes.
+
+    :group: plots
+
+    """
+
     fpr = dict()
     tpr = dict()
     thresholds = dict()
@@ -807,8 +830,10 @@ def plot_multiclass_roc(true, pred, set, image_directory):
 
             classPred.append(pred[j][i])
 
-        fpr[i], tpr[i], thresholds[i] = metrics.roc_curve(classTrue, classPred)
-        roc_auc[i] = metrics.auc(fpr[i], tpr[i])
+        fpr[i], tpr[i], thresholds[i] = cb.metrics.roc_curve(
+            classTrue, classPred
+        )
+        roc_auc[i] = cb.metrics.auc(fpr[i], tpr[i])
 
     fig, ax = plt.subplots()
     ax.plot([0, 1], [0, 1], "k--")
@@ -835,6 +860,11 @@ def plot_multiclass_roc(true, pred, set, image_directory):
 
 
 def plot_distributions(data):
+    """Plot distributions of input features in the training data set.
+
+    :group: plots
+
+    """
 
     if not os.path.exists(cb.conf.image_directory + "distributions"):
         os.makedirs(cb.conf.image_directory + "distributions")
@@ -844,7 +874,9 @@ def plot_distributions(data):
 
         ax1 = plt.subplot(311)
 
-        crystalData = features.filter_masked(data[data["GFA"] == 0][feature])
+        crystalData = cb.features.filter_masked(
+            data[data["GFA"] == 0][feature]
+        )
         bins = "auto"
         if len(crystalData) == 0:
             bins = 1
@@ -855,7 +887,7 @@ def plot_distributions(data):
         ax1.tick_params(left=False)
         ax1.set_title("Crystals")
 
-        ribbonData = features.filter_masked(data[data["GFA"] == 1][feature])
+        ribbonData = cb.features.filter_masked(data[data["GFA"] == 1][feature])
         bins = "auto"
         if len(ribbonData) == 0:
             bins = 1
@@ -866,7 +898,7 @@ def plot_distributions(data):
         ax2.tick_params(left=False)
         ax2.set_title("Ribbons")
 
-        bmgData = features.filter_masked(data[data["GFA"] == 2][feature])
+        bmgData = cb.features.filter_masked(data[data["GFA"] == 2][feature])
         bins = "auto"
         if len(bmgData) == 0:
             bins = 1
@@ -885,9 +917,9 @@ def plot_distributions(data):
         #        ax4.tick_params(left=False)
         #        ax4.set_title('Unknown')
 
-        label = features.prettyName(feature)
-        if feature in features.units:
-            label += " (" + features.units[feature] + ")"
+        label = cb.features.prettyName(feature)
+        if feature in cb.features.units:
+            label += " (" + cb.features.units[feature] + ")"
 
         plt.xlabel(label)
         # plt.gca().xaxis.grid(True)
@@ -900,7 +932,7 @@ def plot_distributions(data):
         plt.clf()
         plt.close()
 
-        plt.hist(features.filter_masked(data[feature]), bins=25)
+        plt.hist(cb.features.filter_masked(data[feature]), bins=25)
         plt.xlabel(label)
         plt.ylabel("Count")
         # plt.grid(alpha=.4)
@@ -917,6 +949,12 @@ def plot_distributions(data):
 
 
 def plot_feature_variation(data, suffix=None):
+    """Plot a the quartile coefficient of dispersion for each feature in the
+    training data.
+
+    :group: plots
+
+    """
 
     if not os.path.exists(cb.conf.image_directory):
         os.makedirs(cb.conf.image_directory)
@@ -933,7 +971,7 @@ def plot_feature_variation(data, suffix=None):
         if feature == "composition" or feature in cb.conf.target_names:
             continue
 
-        featureNames.append(features.prettyName(feature))
+        featureNames.append(cb.features.prettyName(feature))
 
         Q1 = np.percentile(tmpData[feature], 25)
         Q3 = np.percentile(tmpData[feature], 75)
@@ -960,6 +998,12 @@ def plot_feature_variation(data, suffix=None):
 
 
 def plot_correlation(data, suffix=None):
+    """Plot correlations between pairs of features, using a correlation matrix
+    and a dendrogram.
+
+    :group: plots
+
+    """
 
     if not os.path.exists(cb.conf.image_directory + "correlations"):
         os.makedirs(cb.conf.image_directory + "correlations")
@@ -977,7 +1021,7 @@ def plot_correlation(data, suffix=None):
     corr_linkage = hierarchy.ward(correlation)
     dendro = hierarchy.dendrogram(
         corr_linkage,
-        labels=[features.prettyName(f) for f in tmpData.columns],
+        labels=[cb.features.prettyName(f) for f in tmpData.columns],
         ax=ax,
         orientation="right",
     )
@@ -1012,10 +1056,12 @@ def plot_correlation(data, suffix=None):
         center=0,
         cbar=False,
         yticklabels=[
-            features.prettyName(f) for f in tmpData.columns[dendro["leaves"]]
+            cb.features.prettyName(f)
+            for f in tmpData.columns[dendro["leaves"]]
         ],
         xticklabels=[
-            features.prettyName(f) for f in tmpData.columns[dendro["leaves"]]
+            cb.features.prettyName(f)
+            for f in tmpData.columns[dendro["leaves"]]
         ],
     )
 
@@ -1061,7 +1107,7 @@ def plot_correlation(data, suffix=None):
             ):
                 significantCorrelations.append(featureCorrelation[i])
                 significantCorrelationFeatures.append(
-                    features.prettyName(featureNames[i])
+                    cb.features.prettyName(featureNames[i])
                 )
 
                 correlationValue = correlation[
@@ -1111,6 +1157,11 @@ def plot_correlation(data, suffix=None):
 
 
 def plot_feature_permutation(data):
+    """Plot the results of feature permutation, ranking the most important features.
+
+    :group: plots
+
+    """
 
     if not os.path.exists(cb.conf.image_directory + "permutation"):
         os.makedirs(cb.conf.image_directory + "permutation")
@@ -1134,7 +1185,7 @@ def plot_feature_permutation(data):
 
         plt.barh(
             [
-                features.prettyName(f)
+                cb.features.prettyName(f)
                 for f in np.array(tmp_features)[sorted_indices]
             ],
             np.array(tmp_data)[sorted_indices].T,
@@ -1146,9 +1197,9 @@ def plot_feature_permutation(data):
         else:
             plt.xlabel(
                 "Increase in "
-                + features.prettyName(target.name)
+                + cb.features.prettyName(target.name)
                 + " Mean Absolute Error ("
-                + features.units[target.name]
+                + cb.features.units[target.name]
                 + ")"
             )
 
@@ -1168,7 +1219,7 @@ def plot_feature_permutation(data):
         topN = 10
         plt.barh(
             [
-                features.prettyName(f)
+                cb.features.prettyName(f)
                 for f in np.array(tmp_features)[sorted_indices]
             ][-topN:],
             np.array(tmp_data)[sorted_indices].T[-topN:],
@@ -1179,9 +1230,9 @@ def plot_feature_permutation(data):
         else:
             plt.xlabel(
                 "Increase in "
-                + features.prettyName(target.name)
+                + cb.features.prettyName(target.name)
                 + " Mean Absolute Error ("
-                + features.units[target.name]
+                + cb.features.units[target.name]
                 + ")"
             )
 

@@ -1,5 +1,9 @@
+"""Cerebral
+
+A tool for creating multi-output deep ensemble neural networks with TensorFlow.
+"""
+
 import os
-import datetime
 
 from omegaconf import OmegaConf
 
@@ -9,39 +13,85 @@ from . import models
 from . import metrics
 from . import kfolds
 from . import permutation
+from . import plots
+from . import tuning
+
+from . import GFA
+
+__all__ = [
+    "features",
+    "models",
+    "metrics",
+    "kfolds",
+    "permutation",
+    "io",
+    "plots",
+    "tuning",
+    "GFA",
+]
 
 conf = None
 
 
-def setup(config="config.yaml"):
+def setup(user_config: dict = {}):
+    """Initialises cerebral's default parameters.
+
+    :group: utils
+
+    Parameters
+    ----------
+
+    user_config
+        Parameters set by the user.
+
+    """
+
     global conf
 
-    conf = OmegaConf.load(config)
+    conf = OmegaConf.create(user_config)
 
-    if not os.path.exists('output'):
-        os.makedirs('output')
+    if not os.path.exists("output"):
+        os.makedirs("output")
 
-    model_name = conf.get('model_name', conf.task)
+    model_name = conf.get("model_name", "model")
     if conf.get("output_directory", None) is None:
-        conf.output_directory = 'output/' + model_name
+        conf.output_directory = "output/" + model_name
 
     if not os.path.exists(conf.output_directory):
         os.makedirs(conf.output_directory)
-    elif conf.task in ['simple', 'kFolds', 'kFoldsEnsemble']:
-        print("Error: Model already exists with name: " + model_name)
-        exit()
 
-    image_directory = conf.output_directory + '/figures'
+    image_directory = conf.output_directory + "/figures"
     if not os.path.exists(image_directory):
         os.makedirs(image_directory)
-    image_directory = image_directory + '/'
+    image_directory = image_directory + "/"
     conf.image_directory = image_directory
 
-    if conf.data.directory is None:
-        print("Error: No data directory set")
-        exit()
-    elif conf.data.directory[-1] != "/":
+    if not hasattr(conf, "data"):
+        conf.data = OmegaConf.create({})
+
+    if "directory" not in conf.data:
+        conf.data.directory = "./"
+    if conf.data.directory[-1] != "/":
         conf.data.directory += "/"
 
-    conf.target_names = [t.name for t in conf.targets]
-    conf.pretty_feature_names = [f.name for f in conf.pretty_features]
+    if "files" not in conf.data:
+        raise Exception("No data files set!")
+
+    if "targets" in conf:
+        conf.target_names = [t.name for t in conf.targets]
+
+        for i in range(len(conf.targets)):
+            if "type" not in conf.targets[i]:
+                conf.targets[i].type = "numerical"
+            if "weight" not in conf.targets[i]:
+                conf.targets[i].weight = 1.0
+            if "loss" not in conf.targets[i]:
+                conf.targets[i].weight = "RMSE"
+
+    else:
+        raise Exception("No targets set!")
+
+    if "pretty_feature_names" in conf:
+        conf.pretty_feature_names = [f.name for f in conf.pretty_features]
+
+    features.setup_units()

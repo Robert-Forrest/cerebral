@@ -1,86 +1,160 @@
-# pylint: disable=no-member
-from __future__ import absolute_import, division, print_function, unicode_literals
-import numpy as np  # pylint: disable=import-error
+"""Module providing feature permutation functionality."""
+
+from __future__ import (
+    absolute_import,
+    division,
+    print_function,
+    unicode_literals,
+)
+import numpy as np
 
 import cerebral as cb
-from . import plots
-from . import features
-from . import models
-from . import metrics
-from . import io
 
 
 def permutation(postprocess=None):
+    """Performs feature permutation analysis to identify important features. See
+    Section 5 of
+    https://pubs.rsc.org/en/content/articlelanding/2022/dd/d2dd00026a.
 
-    numPermutations = cb.conf.get("permutations", 5)
+    :group: permutation
 
-    open(cb.conf.output_directory + '/permutedFeatures.dat', 'w')
+    Parameters
+    ----------
 
-    model = models.load(cb.conf.output_directory+'/model')
-    originalData = io.load_data(model=model, plot=False,
-                                postprocess=postprocess)
+    postprocess
+        A function to run on the data after loading.
 
-    permutationImportance = {}
-    for permutedFeature in ['none'] + list(originalData.columns):
-        if permutedFeature not in cb.conf.target_names and permutedFeature != 'composition':
+    """
 
-            permutationImportance[permutedFeature] = {}
+    num_permutations = cb.conf.get("permutations", 5)
+
+    open(cb.conf.output_directory + "/permuted_features.dat", "w")
+
+    model = cb.models.load(cb.conf.output_directory + "/model")
+    originalData = cb.io.load_data(
+        model=model, plot=False, postprocess=postprocess
+    )
+
+    permutation_importance = {}
+    for permuted_feature in ["none"] + list(originalData.columns):
+        if (
+            permuted_feature not in cb.conf.target_names
+            and permuted_feature != "composition"
+        ):
+
+            permutation_importance[permuted_feature] = {}
             for feature in cb.conf.targets:
-                permutationImportance[permutedFeature][feature.name] = []
+                permutation_importance[permuted_feature][feature.name] = []
 
-            for k in range(numPermutations):
+            for k in range(num_permutations):
 
                 data = originalData.copy()
-                if permutedFeature != 'none':
-                    data[permutedFeature] = np.random.permutation(
-                        data[permutedFeature].values)
+                if permuted_feature != "none":
+                    data[permuted_feature] = np.random.permutation(
+                        data[permuted_feature].values
+                    )
 
-                train_ds, train_features, labels, sampleWeight = features.create_datasets(
-                    data)
+                (
+                    train_ds,
+                    train_features,
+                    labels,
+                    sampleWeight,
+                ) = cb.features.create_datasets(data)
 
-                predictions = models.evaluate_model(
-                    model, train_ds, labels, plot=False)
+                predictions = cb.models.evaluate_model(
+                    model, train_ds, labels, plot=False
+                )
 
                 for feature in cb.conf.targets:
-                    featureIndex = cb.conf.target_names.index(feature.name)
-                    if feature.type == 'numerical':
+                    feature_index = cb.conf.target_names.index(feature.name)
+                    if feature.type == "numerical":
 
-                        labels_masked, predictions_masked = features.filter_masked(
-                            labels[feature.name], predictions[featureIndex].flatten())
+                        (
+                            labels_masked,
+                            predictions_masked,
+                        ) = cb.features.filter_masked(
+                            labels[feature.name],
+                            predictions[feature_index].flatten(),
+                        )
 
-                        permutationImportance[permutedFeature][feature.name].append(metrics.calc_MAE(
-                            labels_masked, predictions_masked))
+                        permutation_importance[permuted_feature][
+                            feature.name
+                        ].append(
+                            cb.metrics.calc_MAE(
+                                labels_masked, predictions_masked
+                            )
+                        )
 
                     else:
 
-                        labels_masked, predictions_masked = features.filter_masked(
-                            labels[feature.name], predictions[featureIndex])
+                        (
+                            labels_masked,
+                            predictions_masked,
+                        ) = cb.features.filter_masked(
+                            labels[feature.name], predictions[feature_index]
+                        )
 
-                        permutationImportance[permutedFeature][feature.name].append(metrics.calc_accuracy(
-                            labels_masked, predictions_masked))
+                        permutation_importance[permuted_feature][
+                            feature.name
+                        ].append(
+                            cb.metrics.calc_accuracy(
+                                labels_masked, predictions_masked
+                            )
+                        )
 
-                if permutedFeature == 'none':
+                if permuted_feature == "none":
                     for feature in cb.conf.targets:
-                        permutationImportance[permutedFeature][feature.name] = permutationImportance[permutedFeature][feature.name][0]
+                        permutation_importance[permuted_feature][
+                            feature.name
+                        ] = permutation_importance[permuted_feature][
+                            feature.name
+                        ][
+                            0
+                        ]
                     break
 
-            if permutedFeature != 'none':
+            if permuted_feature != "none":
                 for feature in cb.conf.targets:
-                    averageScore = 0
-                    for i in range(numPermutations):
-                        averageScore += permutationImportance[permutedFeature][feature.name][i]
-                    averageScore /= numPermutations
-                    if feature.type == 'numerical':
-                        permutationImportance[permutedFeature][feature.name] = max(0, averageScore -
-                                                                                   permutationImportance['none'][feature.name])
+                    average_score = 0
+                    for i in range(num_permutations):
+                        average_score += permutation_importance[
+                            permuted_feature
+                        ][feature.name][i]
+                    average_score /= num_permutations
+                    if feature.type == "numerical":
+                        permutation_importance[permuted_feature][
+                            feature.name
+                        ] = max(
+                            0,
+                            average_score
+                            - permutation_importance["none"][feature.name],
+                        )
                     else:
-                        permutationImportance[permutedFeature][feature.name] = max(
-                            0, permutationImportance['none'][feature.name] - averageScore)
+                        permutation_importance[permuted_feature][
+                            feature.name
+                        ] = max(
+                            0,
+                            permutation_importance["none"][feature.name]
+                            - average_score,
+                        )
 
-            with open(cb.conf.output_directory + '/permutedFeatures.dat', 'a') as resultsFile:
+            with open(
+                cb.conf.output_directory + "/permuted_features.dat", "a"
+            ) as resultsFile:
                 for feature in cb.conf.targets:
-                    resultsFile.write(permutedFeature + ' ' + feature.name + ' ' +
-                                      " " + str(permutationImportance[permutedFeature][feature.name]) + '\n')
+                    resultsFile.write(
+                        permuted_feature
+                        + " "
+                        + feature.name
+                        + " "
+                        + " "
+                        + str(
+                            permutation_importance[permuted_feature][
+                                feature.name
+                            ]
+                        )
+                        + "\n"
+                    )
 
-    del permutationImportance['none']
-    plots.plot_feature_permutation(permutationImportance)
+    del permutation_importance["none"]
+    cb.plots.plot_feature_permutation(permutation_importance)
