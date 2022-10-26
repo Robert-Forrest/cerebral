@@ -127,15 +127,12 @@ def calculate_features(
         merge_duplicates = False
 
         (
-            basic_features,
-            complex_features,
+            input_features,
             target_names,
         ) = get_features_from_model(model)
 
     else:
-        basic_features = cb.conf.basic_features
-        complex_features = cb.conf.complex_features
-        targets = cb.conf.targets
+        input_features = cb.conf.input_features
         target_names = cb.conf.target_names
 
     for additionalFeature in additionalFeatures:
@@ -143,88 +140,65 @@ def calculate_features(
             "_deviation"
         )[0]
         if (
-            actual_feature not in basic_features
-            and actual_feature not in complex_features
+            actual_feature not in input_features
             and actual_feature not in target_names
         ):
-            basic_features.append(actual_feature)
+            input_features.append(actual_feature)
 
     if len(requiredFeatures) > 0:
         drop_correlated_features = False
 
         for feature in requiredFeatures:
+            if feature in input_features:
+                continue
 
             if "_linearmix" in feature:
                 actual_feature = feature.split("_linearmix")[0]
-                if (
-                    actual_feature not in basic_features
-                    and actual_feature not in complex_features
-                    and feature not in complex_features
-                ):
-                    basic_features.append(actual_feature)
+                if actual_feature not in input_features:
+                    input_features.append(actual_feature)
 
             elif "_deviation" in feature:
                 actual_feature = feature.split("_deviation")[0]
-                if (
-                    actual_feature not in basic_features
-                    and actual_feature not in complex_features
-                    and feature not in complex_features
-                ):
-                    basic_features.append(actual_feature)
+                if actual_feature not in input_features:
+                    input_features.append(actual_feature)
 
             else:
-                if feature not in complex_features:
-                    complex_features.append(feature)
+                input_features.append(feature)
 
     feature_values = {}
-    complex_feature_values = {}
 
-    for feature in basic_features:
-        feature_values[feature] = {"linearmix": [], "deviation": []}
-        units[feature + "_deviation"] = "%"
+    for feature in input_features:
+        if mg.get_property_function(feature) is None:
+            feature_values[feature + "_linearmix"] = []
+            feature_values[feature + "_deviation"] = []
 
-    for feature in complex_features:
-        complex_feature_values[feature] = []
+            units[feature + "_deviation"] = "%"
+        else:
+            feature_values[feature] = []
 
-    for feature in targets:
-        if (
-            feature["type"] == "categorical"
-            and feature["name"] in data.columns
-        ):
-            data[feature["name"]] = data[feature["name"]].map(
-                {feature.classes[i]: i for i in range(len(feature.classes))}
+    input_features = list(feature_values.keys())
+
+    for column in data:
+        if column == "composition":
+            continue
+
+        if not np.issubdtype(data[column].dtype, np.number):
+            classes = data[column].unique()
+
+            data[column] = data[column].map(
+                {classes[i]: i for i in range(len(classes))}
             )
-            data[feature["name"]] = data[feature["name"]].fillna(maskValue)
-            data[feature["name"]] = data[feature["name"]].astype(np.int64)
+            data[column] = data[column].fillna(maskValue)
+            data[column] = data[column].astype(np.int64)
 
-    for i, row in data.iterrows():
-
-        composition = mg.alloy.parse_composition(row["composition"])
-
-        for feature in basic_features:
-
-            if "linearmix" in feature_values[feature]:
-                feature_values[feature]["linearmix"].append(
-                    mg.linear_mixture(composition, feature)
-                )
-
-            if "deviation" in feature_values[feature]:
-                feature_values[feature]["deviation"].append(
-                    mg.deviation(composition, feature)
-                )
-
-        for feature in complex_feature_values:
-            complex_feature_values[feature].append(
-                mg.calculate(composition, feature)
+    for _, row in data.iterrows():
+        for feature in input_features:
+            feature_values[feature].append(
+                mg.calculate(row["composition"], feature)
             )
 
-    for feature in feature_values:
-        for kind in feature_values[feature]:
-            if len(feature_values[feature][kind]) == len(data.index):
-                data[feature + "_" + kind] = feature_values[feature][kind]
-    for feature in complex_features:
-        if len(complex_feature_values[feature]) == len(data.index):
-            data[feature] = complex_feature_values[feature]
+    for feature in input_features:
+        data[feature] = feature_values[feature]
 
     data = data.fillna(maskValue)
 
@@ -238,12 +212,12 @@ def calculate_features(
     if drop_correlated_features:
 
         data = drop_static_features(data, target_names)
-        data = drop_correlated_features(data, target_names)
+        data = _drop_correlated_features(data, target_names)
 
     return data.copy()
 
 
-def drop_correlated_features(data, target_names):
+def _drop_correlated_features(data, target_names):
     correlation = np.array(data.corr())
 
     correlatedDroppedFeatures = []
@@ -399,7 +373,6 @@ def merge_duplicate_compositions(data: pd.DataFrame) -> pd.DataFrame:
                 ] != maskValue and not pd.isnull(
                     duplicate_compositions[composition][i][feature]
                 ):
-
                     averaged_features[feature] += duplicate_compositions[
                         composition
                     ][i][feature]
@@ -438,20 +411,8 @@ def get_features_from_model(model):
     target_names = [target["name"] for target in targets]
 
     input_features = cb.models.get_model_input_features(model)
-    basic_features = []
-    complex_features = []
 
-    for feature in input_features:
-        actual_feature = feature.split("_linearmix")[0].split("_deviation")[0]
-
-        if "_linearmix" in feature or "_deviation" in feature:
-            if actual_feature not in basic_features:
-                basic_features.append(actual_feature)
-        else:
-            if feature not in complex_features:
-                complex_features.append(feature)
-
-    return basic_features, complex_features, target_names
+    return input_features, target_names
 
 
 def train_test_split(
