@@ -14,7 +14,7 @@ def masked_MSE(y_true, y_pred):
     :group: loss
     """
 
-    mask = K.not_equal(y_true, cb.features.maskValue)
+    mask = K.not_equal(y_true, cb.features.mask_value)
 
     squared_error = tf.where(
         mask, tf.math.square(tf.subtract(y_true, y_pred)), 0
@@ -29,7 +29,7 @@ def masked_MAE(y_true, y_pred):
     :group: loss
     """
 
-    mask = K.not_equal(y_true, cb.features.maskValue)
+    mask = K.not_equal(y_true, cb.features.mask_value)
 
     abs_error = tf.where(mask, tf.math.abs(tf.subtract(y_true, y_pred)), 0)
 
@@ -42,7 +42,7 @@ def masked_PseudoHuber(y_true, y_pred):
     :group: loss
     """
 
-    mask = K.not_equal(y_true, cb.features.maskValue)
+    mask = K.not_equal(y_true, cb.features.mask_value)
 
     error = tf.where(mask, tf.subtract(y_true, y_pred), 0)
 
@@ -61,7 +61,7 @@ def masked_Huber(y_true, y_pred):
 
     :group: loss
     """
-    mask = K.not_equal(y_true, cb.features.maskValue)
+    mask = K.not_equal(y_true, cb.features.mask_value)
 
     error = tf.where(mask, tf.abs(tf.subtract(y_true, y_pred)), 0)
 
@@ -86,7 +86,7 @@ def masked_sparse_categorical_crossentropy(y_true, y_pred):
     :group: loss
     """
 
-    mask = K.not_equal(K.squeeze(y_true, axis=-1), cb.features.maskValue)
+    mask = K.not_equal(K.squeeze(y_true, axis=-1), cb.features.mask_value)
 
     scce = tf.where(
         mask,

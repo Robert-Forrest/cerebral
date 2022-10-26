@@ -14,7 +14,7 @@ def load_data(
     drop_correlated_features: bool = True,
     model=None,
     tmp: bool = False,
-    additionalFeatures: List[str] = [],
+    additional_features: List[str] = [],
     postprocess: bool = None,
 ) -> pd.DataFrame:
     """Load and process data for use by cerebral.
@@ -33,7 +33,7 @@ def load_data(
     tmp
         If True, this data read will skip large tasks such as analytics or
         correlation culling.
-    additionalFeatures
+    additional_features
         A list of additional feature names to calculate.
     postprocess
         A function to run on the data after loading.
@@ -79,23 +79,21 @@ def load_data(
                 data,
                 plot=plot,
                 drop_correlated_features=drop_correlated_features,
-                additionalFeatures=additionalFeatures,
+                additional_features=additional_features,
             )
 
         else:
-            modelInputs = []
-            for inputLayer in model.inputs:
-                modelInputs.append(inputLayer.name)
+            model_inputs = [input_layer.name for input_layer in model.inputs]
 
             data = cb.features.calculate_features(
                 data,
-                requiredFeatures=modelInputs,
+                required_features=model_inputs,
                 plot=plot,
                 drop_correlated_features=drop_correlated_features,
-                additionalFeatures=additionalFeatures,
+                additional_features=additional_features,
             )
 
-        data = data.fillna(cb.features.maskValue)
+        data = data.fillna(cb.features.mask_value)
 
         if not tmp:
             data.to_csv(data_directory + "calculated_features.csv")

@@ -173,7 +173,7 @@ def plot_results_regression(
                         ]
                     )
                 if model_name is not None:
-                    resultsFilePath = (
+                    results_file_path = (
                         cb.conf.output_directory
                         + "/"
                         + str(model_name)
@@ -182,13 +182,13 @@ def plot_results_regression(
                         + "_error.dat"
                     )
                 else:
-                    resultsFilePath = (
+                    results_file_path = (
                         cb.conf.output_directory + "/" + feature + "_error.dat"
                     )
 
-                with open(resultsFilePath, "w") as resultsFile:
+                with open(results_file_path, "w") as results_file:
                     for j in range(len(tmp_train_compositions)):
-                        resultsFile.write(
+                        results_file.write(
                             tmp_train_compositions[j]
                             + " "
                             + str(tmp_train_labels[j])
@@ -212,7 +212,7 @@ def plot_results_regression(
                     )
 
                 if model_name is not None:
-                    resultsFilePath = (
+                    results_file_path = (
                         cb.conf.output_directory
                         + "/"
                         + str(model_name)
@@ -221,15 +221,15 @@ def plot_results_regression(
                         + "_error_test.dat"
                     )
                 else:
-                    resultsFilePath = (
+                    results_file_path = (
                         cb.conf.output_directory
                         + "/"
                         + feature
                         + "_error_test.dat"
                     )
-                with open(resultsFilePath, "w") as resultsFile:
+                with open(results_file_path, "w") as results_file:
                     for j in range(len(tmp_test_compositions)):
-                        resultsFile.write(
+                        results_file.write(
                             tmp_test_compositions[j]
                             + " "
                             + str(tmp_test_labels[j])
@@ -296,17 +296,17 @@ def plot_results_regression(
                         alpha=0.8,
                         marker="x",
                     )
-                minPoint = np.min(
+                min_point = np.min(
                     [np.min(tmp_train_labels), np.min(tmp_test_labels)]
                 )
-                maxPoint = np.max(
+                max_point = np.max(
                     [np.max(tmp_train_labels), np.max(tmp_test_labels)]
                 )
             else:
-                minPoint = np.min(tmp_train_labels)
-                maxPoint = np.max(tmp_train_labels)
+                min_point = np.min(tmp_train_labels)
+                max_point = np.max(tmp_train_labels)
 
-            lims = [minPoint - 0.1 * minPoint, maxPoint + 0.1 * minPoint]
+            lims = [min_point - 0.1 * min_point, max_point + 0.1 * min_point]
             ax.plot(lims, lims, "--k")
 
             annotations = []
@@ -468,8 +468,8 @@ def plot_results_regression_heatmap(train_labels, train_predictions):
             MAEs = []
             RMSEs = []
 
-            minPoint = np.Inf
-            maxPoint = -np.Inf
+            min_point = np.Inf
+            max_point = -np.Inf
 
             labels = []
             predictions = []
@@ -514,16 +514,16 @@ def plot_results_regression_heatmap(train_labels, train_predictions):
                 norm=mpl.colors.LogNorm(),
             )
 
-            minPoint = np.min(labels)
-            maxPoint = np.max(labels)
+            min_point = np.min(labels)
+            max_point = np.max(labels)
 
-            lims = [minPoint - 0.1 * minPoint, maxPoint + 0.1 * minPoint]
+            lims = [min_point - 0.1 * min_point, max_point + 0.1 * min_point]
             plt.plot(lims, lims, "--k")
 
             # plt.autoscale()
             ax.set_aspect("equal", "box")
 
-            descriptionStr = (
+            description_str = (
                 "RMSE: "
                 + str(round(np.mean(RMSEs), 3))
                 + " "
@@ -541,7 +541,7 @@ def plot_results_regression_heatmap(train_labels, train_predictions):
                 + " "
                 + cb.features.units[feature]
             )
-            ob = mpl.offsetbox.AnchoredText(descriptionStr, loc="upper left")
+            ob = mpl.offsetbox.AnchoredText(description_str, loc="upper left")
             ob.patch.set_boxstyle("round,pad=0.,rounding_size=0.2")
             ax.add_artist(ob)
 
@@ -910,7 +910,7 @@ def plot_distributions(data):
         ax3.set_title("BMGs")
 
         #        ax4 = plt.subplot(414, sharex=ax1)
-        #        plt.hist(filter_masked(data[data['GFA'] == cb.features.maskValue]
+        #        plt.hist(filter_masked(data[data['GFA'] == cb.features.mask_value]
         #                               [feature]), bins="auto", color="c")
         # plt.setp(ax4.get_xticklabels())
         #        ax4.set(yticklabels=[])
@@ -960,7 +960,7 @@ def plot_feature_variation(data, suffix=None):
         os.makedirs(cb.conf.image_directory)
 
     tmpData = data.copy()
-    tmpData = tmpData.replace(cb.features.maskValue, np.nan)
+    tmpData = tmpData.replace(cb.features.mask_value, np.nan)
 
     if "composition" in tmpData.columns:
         tmpData = tmpData.drop("composition", axis="columns")
@@ -1009,7 +1009,7 @@ def plot_correlation(data, suffix=None):
         os.makedirs(cb.conf.image_directory + "correlations")
 
     tmpData = data.copy()
-    tmpData = tmpData.replace(cb.features.maskValue, np.nan)
+    tmpData = tmpData.replace(cb.features.mask_value, np.nan)
 
     if "composition" in tmpData.columns:
         tmpData = tmpData.drop("composition", axis="columns")

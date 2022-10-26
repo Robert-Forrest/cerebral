@@ -3,7 +3,6 @@
 import os
 import datetime
 
-import pandas as pd
 import tensorflow as tf
 
 import cerebral as cb
@@ -68,19 +67,16 @@ def setup_losses_and_metrics():
     return losses, feature_metrics
 
 
-def build_input_layers(train_features: pd.DataFrame) -> list:
+def build_input_layers(train_ds) -> list:
     """Returns a list of input layers, one for each input feature.
 
     :group: models
     """
 
-    inputs = []
-    for feature in train_features.columns:
-        inputs.append(
-            tf.keras.Input(shape=(1,), name=feature, dtype="float64")
-        )
-
-    return inputs
+    return [
+        tf.keras.Input(shape=(1,), name=feature, dtype="float64")
+        for feature in train_ds.element_spec[0]
+    ]
 
 
 def build_base_model(
@@ -202,8 +198,8 @@ def build_feature_branch(
 
 
 def build_model(
+    train_ds,
     train_features,
-    train_labels,
     num_shared_layers,
     num_specific_layers,
     units_per_layer,
@@ -222,7 +218,7 @@ def build_model(
     :group: models
     """
 
-    inputs = build_input_layers(train_features)
+    inputs = build_input_layers(train_ds)
 
     normalized_inputs = []
     for input_layer in inputs:
@@ -237,7 +233,7 @@ def build_model(
     )
 
     if num_shared_layers > 0 and len(cb.conf.targets) > 1:
-        baseModel = build_base_model(
+        base_model = build_base_model(
             concatenated_inputs,
             num_shared_layers,
             regularizer,
@@ -249,9 +245,9 @@ def build_model(
         )
 
     else:
-        baseModel = concatenated_inputs
+        base_model = concatenated_inputs
 
-    # baseModel = tf.keras.layers.LayerNormalization()(baseModel)
+    # base_model = tf.keras.layers.LayerNormalization()(base_model)
 
     losses, metrics = setup_losses_and_metrics()
     outputs = []
@@ -261,10 +257,10 @@ def build_model(
 
         if len(outputs) > 0:
             model_branch = tf.keras.layers.concatenate(
-                [baseModel] + normalized_outputs
+                [base_model] + normalized_outputs
             )
         else:
-            model_branch = baseModel
+            model_branch = base_model
 
         ensemble = build_feature_branch(
             feature,
@@ -296,6 +292,7 @@ def build_model(
     model.compile(
         loss=losses,
         metrics=metrics,
+        weighted_metrics=[],
         loss_weights={
             target["name"]: target["weight"] for target in cb.conf.targets
         },
@@ -345,7 +342,7 @@ def load(path):
 
 def train_model(
     data,
-    maxEpochs=1000,
+    max_epochs=1000,
     plot=False,
     model_name=None,
 ):
@@ -361,8 +358,6 @@ def train_model(
         test_features,
         train_labels,
         test_labels,
-        sample_weight,
-        sample_weight_test,
     ) = cb.features.create_datasets(data, cb.conf.targets, train, test)
 
     train_data = {
@@ -378,13 +373,10 @@ def train_model(
     }
 
     model, history = compile_and_fit(
+        train_ds,
         train_features,
-        train_labels,
-        sample_weight,
-        test_features,
-        test_labels,
-        sample_weight_test,
-        maxEpochs,
+        test_ds,
+        max_epochs,
         plot,
         model_name,
     )
@@ -393,13 +385,10 @@ def train_model(
 
 
 def compile_and_fit(
+    train_ds,
     train_features,
-    train_labels,
-    sample_weight,
-    test_features=None,
-    test_labels=None,
-    sample_weight_test=None,
-    maxEpochs=1000,
+    test_ds=None,
+    max_epochs=1000,
     plot=False,
     model_name=None,
 ):
@@ -409,8 +398,8 @@ def compile_and_fit(
     """
 
     model = build_model(
+        train_ds,
         train_features,
-        train_labels,
         num_shared_layers=3,
         num_specific_layers=5,
         units_per_layer=64,
@@ -425,13 +414,9 @@ def compile_and_fit(
 
     model, history = fit(
         model,
-        train_features,
-        train_labels,
-        sample_weight,
-        test_features,
-        test_labels,
-        sample_weight_test,
-        maxEpochs,
+        train_ds,
+        test_ds,
+        max_epochs,
     )
 
     if plot:
@@ -446,13 +431,9 @@ def compile_and_fit(
 
 def fit(
     model,
-    train_features,
-    train_labels,
-    sample_weight,
-    test_features=None,
-    test_labels=None,
-    sample_weight_test=None,
-    maxEpochs=1000,
+    train_ds,
+    test_ds,
+    max_epochs=1000,
 ):
     """Perform training of a model to data.
 
@@ -462,37 +443,16 @@ def fit(
     patience = 100
     min_delta = 0.001
 
-    x_train = {}
-    for feature in train_features:
-        x_train[feature] = train_features[feature]
-
-    y_train = {}
-    for feature in cb.conf.targets:
-        if feature.name in train_labels:
-            y_train[feature.name] = train_labels[feature.name]
-
     monitor = "loss"
 
     test_data = None
-    if test_features is not None:
-        xTest = {}
-        for feature in test_features:
-            xTest[feature] = test_features[feature]
-
-        yTest = {}
-        for feature in cb.conf.targets:
-            if feature.name in test_labels:
-                yTest[feature.name] = test_labels[feature.name]
-
-        test_data = (xTest, yTest)  # , sample_weight_test)
-
+    if test_ds is not None:
         monitor = "val_loss"
 
     history = model.fit(
-        x=x_train,
-        y=y_train,
+        train_ds,
         batch_size=cb.conf.train.get("batch_size", 1024),
-        epochs=maxEpochs,
+        epochs=max_epochs,
         callbacks=[
             tf.keras.callbacks.EarlyStopping(
                 monitor=monitor,
@@ -517,8 +477,7 @@ def fit(
                 histogram_freq=1,
             ),
         ],
-        # sample_weight=sample_weight,
-        validation_data=test_data,
+        validation_data=test_ds,
         verbose=2,
     )
     return model, history

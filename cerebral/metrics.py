@@ -25,7 +25,7 @@ def tprPerClass(y_true, y_pred, class_index=0):
     pred = K.argmax(y_pred)
     true = K.squeeze(y_true, axis=-1)
 
-    mask = K.cast(K.not_equal(true, cb.features.maskValue), "int64")
+    mask = K.cast(K.not_equal(true, cb.features.mask_value), "int64")
 
     pp = K.cast(K.equal(pred, class_index), "int64") * mask
     p = K.cast(K.equal(true, class_index), "int64")
@@ -58,7 +58,7 @@ def ppvPerClass(y_true, y_pred, class_index=0):
     pred = K.argmax(y_pred)
     true = K.squeeze(y_true, axis=-1)
 
-    mask = K.cast(K.not_equal(true, cb.features.maskValue), "int64")
+    mask = K.cast(K.not_equal(true, cb.features.mask_value), "int64")
 
     pp = K.cast(K.equal(pred, class_index), "int64") * mask
     p = K.cast(K.equal(true, class_index), "int64")
@@ -106,7 +106,7 @@ def tnrPerClass(y_true, y_pred, class_index=0):
     pred = K.argmax(y_pred)
     true = K.squeeze(y_true, axis=-1)
 
-    mask = K.cast(K.not_equal(true, cb.features.maskValue), "int64")
+    mask = K.cast(K.not_equal(true, cb.features.mask_value), "int64")
 
     pn = K.cast(K.not_equal(pred, class_index), "int64") * mask
     n = K.cast(K.not_equal(true, class_index), "int64")
@@ -196,7 +196,7 @@ def accuracy(y_true, y_pred):
     pred = K.argmax(y_pred)
     true = K.cast(K.squeeze(y_true, axis=-1), "int64")
 
-    mask = K.cast(K.not_equal(true, cb.features.maskValue), "int64")
+    mask = K.cast(K.not_equal(true, cb.features.mask_value), "int64")
     matches = K.cast(K.equal(true, pred), "int64") * mask
 
     return K.sum(matches) / K.maximum(K.sum(mask), 1)

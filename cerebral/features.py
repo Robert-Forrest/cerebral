@@ -11,7 +11,7 @@ import metallurgy as mg
 import cerebral as cb
 
 
-maskValue = -1
+mask_value = -1
 
 units = {
     "Dmax": "mm",
@@ -78,8 +78,8 @@ def calculate_features(
     data: pd.DataFrame,
     drop_correlated_features: bool = True,
     plot: bool = False,
-    additionalFeatures: List[str] = [],
-    requiredFeatures: List[str] = [],
+    additional_features: List[str] = [],
+    required_features: List[str] = [],
     merge_duplicates: bool = True,
     model: Optional = None,
 ):
@@ -96,9 +96,9 @@ def calculate_features(
         If True, pairs of correlated feautres will be culled.
     plot
         If True, graphs of the data set population will be created.
-    additionalFeatures
+    additional_features
         List of additional feature names to calculate.
-    requiredFeatures
+    required_features
         List of required feature names to calculate.
     merge_duplicates
         If True, duplicate alloy compositions will be combined.
@@ -113,14 +113,21 @@ def calculate_features(
         ):
             data = [data]
 
-        parsed_data = []
-        for i in range(len(data)):
-            alloy = data[i]
-            if not isinstance(data[i], mg.Alloy):
-                alloy = mg.Alloy(data[i], rescale=False)
-            parsed_data.append(alloy.to_string())
+        data = pd.DataFrame(
+            [
+                mg.Alloy(composition, rescale=False)
+                for _, composition in enumerate(data)
+            ],
+            columns=["composition"],
+        )
+        non_calculated_features = []
+    else:
+        non_calculated_features = data.columns
 
-        data = pd.DataFrame(parsed_data, columns=["composition"])
+        data["composition"] = [
+            mg.Alloy(row["composition"], rescale=False)
+            for _, row in data.iterrows()
+        ]
 
     if model is not None:
         drop_correlated_features = False
@@ -135,8 +142,8 @@ def calculate_features(
         input_features = cb.conf.input_features
         target_names = cb.conf.target_names
 
-    for additionalFeature in additionalFeatures:
-        actual_feature = additionalFeature.split("_linearmix")[0].split(
+    for additional_feature in additional_features:
+        actual_feature = additional_feature.split("_linearmix")[0].split(
             "_deviation"
         )[0]
         if (
@@ -145,10 +152,10 @@ def calculate_features(
         ):
             input_features.append(actual_feature)
 
-    if len(requiredFeatures) > 0:
+    if len(required_features) > 0:
         drop_correlated_features = False
 
-        for feature in requiredFeatures:
+        for feature in required_features:
             if feature in input_features:
                 continue
 
@@ -165,18 +172,17 @@ def calculate_features(
             else:
                 input_features.append(feature)
 
-    feature_values = {}
+    original_input_features = input_features[:]
+    input_features = []
 
-    for feature in input_features:
+    for feature in original_input_features:
         if mg.get_property_function(feature) is None:
-            feature_values[feature + "_linearmix"] = []
-            feature_values[feature + "_deviation"] = []
+            input_features.append(feature + "_linearmix")
+            input_features.append(feature + "_deviation")
 
             units[feature + "_deviation"] = "%"
         else:
-            feature_values[feature] = []
-
-    input_features = list(feature_values.keys())
+            input_features.append(feature)
 
     for column in data:
         if column == "composition":
@@ -185,52 +191,61 @@ def calculate_features(
         if not np.issubdtype(data[column].dtype, np.number):
             classes = data[column].unique()
 
-            data[column] = data[column].map(
-                {classes[i]: i for i in range(len(classes))}
-            )
-            data[column] = data[column].fillna(maskValue)
-            data[column] = data[column].astype(np.int64)
-
-    for _, row in data.iterrows():
-        for feature in input_features:
-            feature_values[feature].append(
-                mg.calculate(row["composition"], feature)
+            data[column] = (
+                data[column]
+                .map({classes[i]: i for i in range(len(classes))})
+                .fillna(mask_value)
+                .astype(np.int64)
             )
 
+    input_feature_values = {}
     for feature in input_features:
-        data[feature] = feature_values[feature]
+        print(feature)
+        input_feature_values[feature] = mg.calculate(
+            data["composition"], feature
+        )
 
-    data = data.fillna(maskValue)
+    data = pd.concat(
+        [data, pd.DataFrame.from_dict(input_feature_values)],
+        axis=1,
+    )
+
+    data = data.fillna(mask_value)
 
     if merge_duplicates:
+        print("Merging")
         data = merge_duplicate_compositions(data)
 
     if plot:
+        print("Plotting")
         cb.plots.plot_correlation(data)
         cb.plots.plot_feature_variation(data)
 
     if drop_correlated_features:
+        required_features.extend(non_calculated_features)
+        data = drop_static_features(data, target_names, required_features)
+        data = _drop_correlated_features(data, target_names, required_features)
 
-        data = drop_static_features(data, target_names)
-        data = _drop_correlated_features(data, target_names)
-
-    return data.copy()
+    return data
 
 
-def _drop_correlated_features(data, target_names):
+def _drop_correlated_features(data, target_names, required_features):
+    print("Dropping correlated")
     correlation = np.array(data.corr())
 
-    correlatedDroppedFeatures = []
+    correlated_dropped_features = []
     for i in range(len(correlation) - 1):
         if (
-            data.columns[i] not in correlatedDroppedFeatures
+            data.columns[i] not in correlated_dropped_features
             and data.columns[i] not in target_names
+            and data.columns[i] not in required_features
             and data.columns[i] != "composition"
         ):
             for j in range(i + 1, len(correlation)):
                 if (
-                    data.columns[j] not in correlatedDroppedFeatures
+                    data.columns[j] not in correlated_dropped_features
                     and data.columns[j] not in target_names
+                    and data.columns[j] not in required_features
                     and data.columns[j] != "composition"
                 ):
                     if np.abs(correlation[i][j]) >= cb.conf.train.get(
@@ -247,27 +262,30 @@ def _drop_correlated_features(data, target_names):
                             #     data.columns[i],
                             #     sum(np.abs(correlation[i])),
                             # )
-                            correlatedDroppedFeatures.append(data.columns[i])
+                            correlated_dropped_features.append(data.columns[i])
                             break
-                        else:
-                            # print(
-                            #     data.columns[i],
-                            #     sum(np.abs(correlation[i])),
-                            #     "beats",
-                            #     data.columns[j],
-                            #     sum(np.abs(correlation[j])),
-                            # )
-                            correlatedDroppedFeatures.append(data.columns[j])
 
-    for feature in correlatedDroppedFeatures:
-        if feature not in target_names:
+                        # print(
+                        #     data.columns[i],
+                        #     sum(np.abs(correlation[i])),
+                        #     "beats",
+                        #     data.columns[j],
+                        #     sum(np.abs(correlation[j])),
+                        # )
+                        correlated_dropped_features.append(data.columns[j])
+
+    for feature in correlated_dropped_features:
+        if feature not in target_names and feature not in required_features:
+            print("Dropping", feature)
             data = data.drop(feature, axis="columns")
 
     return data
 
 
 def drop_static_features(
-    data: pd.DataFrame, target_names: List[str] = []
+    data: pd.DataFrame,
+    target_names: List[str] = [],
+    required_features: List[str] = [],
 ) -> pd.DataFrame:
     """Drop static features by analysis of the quartile coefficient of
     dispersion. See Equation 7 of
@@ -284,12 +302,16 @@ def drop_static_features(
         Dictionary of prediction target names.
 
     """
+    print("Dropping static")
+    static_features = []
 
-    staticFeatures = []
-
-    quartileDiffusions = {}
+    quartile_dispersions = {}
     for feature in data.columns:
-        if feature == "composition":
+        if (
+            feature == "composition"
+            or feature in target_names
+            or feature in required_features
+        ):
             continue
 
         Q1 = np.percentile(data[feature], 25)
@@ -298,13 +320,13 @@ def drop_static_features(
         coefficient = 0
         if np.abs(Q1 + Q3) > 0:
             coefficient = np.abs((Q3 - Q1) / (Q3 + Q1))
-        quartileDiffusions[feature] = coefficient
+        quartile_dispersions[feature] = coefficient
 
         if coefficient < 0.1:
-            staticFeatures.append(feature)
+            static_features.append(feature)
 
-    for feature in staticFeatures:
-        if feature not in target_names:
+    for feature in static_features:
+        if feature not in target_names and feature not in required_features:
             data = data.drop(feature, axis="columns")
 
     return data
@@ -329,27 +351,27 @@ def merge_duplicate_compositions(data: pd.DataFrame) -> pd.DataFrame:
     seen_compositions = []
     duplicate_compositions = {}
     for i, row in data.iterrows():
-        alloy = mg.Alloy(row["composition"], rescale=False)
-        composition = alloy.to_string()
+        alloy = row["composition"]
+        composition_str = alloy.to_string()
 
         if abs(1 - sum(alloy.composition.values())) > 0.01:
             print("Invalid composition:", row["composition"], i)
             to_drop.append(i)
 
-        elif composition in seen_compositions:
-            if composition not in duplicate_compositions:
-                duplicate_compositions[composition] = [
-                    data.iloc[seen_compositions.index(composition)]
+        elif composition_str in seen_compositions:
+            if composition_str not in duplicate_compositions:
+                duplicate_compositions[composition_str] = [
+                    data.iloc[seen_compositions.index(composition_str)]
                 ]
-            duplicate_compositions[composition].append(row)
+            duplicate_compositions[composition_str].append(row)
             to_drop.append(i)
-        seen_compositions.append(composition)
+        seen_compositions.append(composition_str)
 
     data = data.drop(to_drop)
 
     to_drop = []
     for i, row in data.iterrows():
-        composition = mg.Alloy(row["composition"], rescale=False).to_string()
+        composition = row["composition"].to_string()
 
         if composition in duplicate_compositions:
             to_drop.append(i)
@@ -370,7 +392,7 @@ def merge_duplicate_compositions(data: pd.DataFrame) -> pd.DataFrame:
             for feature in averaged_features:
                 if duplicate_compositions[composition][i][
                     feature
-                ] != maskValue and not pd.isnull(
+                ] != mask_value and not pd.isnull(
                     duplicate_compositions[composition][i][feature]
                 ):
                     averaged_features[feature] += duplicate_compositions[
@@ -380,7 +402,7 @@ def merge_duplicate_compositions(data: pd.DataFrame) -> pd.DataFrame:
 
         for feature in averaged_features:
             if num_contributions[feature] == 0:
-                averaged_features[feature] = maskValue
+                averaged_features[feature] = mask_value
             elif num_contributions[feature] > 1:
                 averaged_features[feature] /= num_contributions[feature]
 
@@ -470,7 +492,9 @@ def train_test_split(
     return pd.DataFrame(trainingSet), pd.DataFrame(testSet)
 
 
-def df_to_dataset(dataframe: pd.DataFrame, targets: List[str] = []):
+def df_to_dataset(
+    dataframe: pd.DataFrame, targets: List[str] = [], weights: List[float] = []
+):
     """Convert a pandas dataframe to a tensorflow dataset
 
     :group: utils
@@ -487,27 +511,34 @@ def df_to_dataset(dataframe: pd.DataFrame, targets: List[str] = []):
 
     dataframe = dataframe.copy()
 
-    labelNames = []
+    label_names = []
     for feature in targets:
         if feature["name"] in dataframe.columns:
-            labelNames.append(feature["name"])
+            label_names.append(feature["name"])
 
-    if len(labelNames) > 0:
-        labels = pd.concat([dataframe.pop(x) for x in labelNames], axis=1)
-        ds = tf.data.Dataset.from_tensor_slices((dict(dataframe), labels))
+    if len(label_names) > 0:
+        labels = pd.concat([dataframe.pop(x) for x in label_names], axis=1)
+        if len(weights) > 0:
+            dataset = tf.data.Dataset.from_tensor_slices(
+                (dict(dataframe), labels, weights)
+            )
+        else:
+            dataset = tf.data.Dataset.from_tensor_slices(
+                (dict(dataframe), labels)
+            )
     else:
-        ds = tf.data.Dataset.from_tensor_slices(dict(dataframe))
+        dataset = tf.data.Dataset.from_tensor_slices(dict(dataframe))
 
     batch_size = 1024
     if cb.conf:
         if cb.conf.get("train", None) is not None:
             batch_size = cb.conf.train.get("batch_size", batch_size)
 
-    ds = ds.batch(batch_size)
-    ds = ds.prefetch(batch_size)
-    ds = ds.cache()
+    dataset = dataset.batch(batch_size)
+    # dataset = dataset.prefetch(batch_size)
+    # dataset = dataset.cache()
 
-    return ds
+    return dataset
 
 
 def generate_sample_weights(
@@ -532,7 +563,7 @@ def generate_sample_weights(
     sample_weights = []
     for _, row in samples.iterrows():
         if class_feature in row:
-            if row[class_feature] != maskValue:
+            if row[class_feature] != mask_value:
                 sample_weights.append(class_weights[int(row[class_feature])])
             else:
                 sample_weights.append(1)
@@ -569,7 +600,6 @@ def create_datasets(
     if len(train) == 0:
         train = data.copy()
 
-    train_ds = df_to_dataset(train, targets=targets)
     train_features = train.copy()
     train_labels = {}
     for feature in targets:
@@ -577,35 +607,37 @@ def create_datasets(
             train_labels[feature["name"]] = train_features.pop(feature["name"])
     train_labels = pd.DataFrame(train_labels)
 
-    numCategoricalTargets = 0
-    categoricalTarget = None
+    num_categorical_targets = 0
+    categorical_target = None
     for target in targets:
         if target.type == "categorical":
-            categoricalTarget = target
-            numCategoricalTargets += 1
+            categorical_target = target
+            num_categorical_targets += 1
 
-    if numCategoricalTargets == 1:
-        counts = data[categoricalTarget.name].value_counts()
-        numSamples = 0
-        for c in categoricalTarget.classes:
+    if num_categorical_targets == 1:
+        counts = data[categorical_target.name].value_counts()
+        num_samples = 0
+        for c in categorical_target.classes:
             if c in counts:
-                numSamples += counts[c]
+                num_samples += counts[c]
 
         class_weights = []
-        for c in categoricalTarget.classes:
+        for c in categorical_target.classes:
             if c in counts:
-                class_weights.append(numSamples / (2 * counts[c]))
+                class_weights.append(float(num_samples / (2 * counts[c])))
             else:
                 class_weights.append(1.0)
 
         sample_weights = generate_sample_weights(
-            train_labels, categoricalTarget.name, class_weights
+            train_labels, categorical_target.name, class_weights
         )
     else:
-        sample_weights = [1] * len(train_labels)
+        sample_weights = [1.0] * len(train_labels)
+
+    train_ds = df_to_dataset(train, targets=targets, weights=sample_weights)
 
     if len(test) > 0:
-        test_ds = df_to_dataset(test, targets=targets)
+
         test_features = test.copy()
         test_labels = {}
         for feature in targets:
@@ -615,12 +647,16 @@ def create_datasets(
                 )
         test_labels = pd.DataFrame(test_labels)
 
-        if numCategoricalTargets == 1:
+        if num_categorical_targets == 1:
             sample_weights_test = generate_sample_weights(
-                test_labels, categoricalTarget.name, class_weights
+                test_labels, categorical_target.name, class_weights
             )
         else:
             sample_weights_test = [1] * len(test_labels)
+
+        test_ds = df_to_dataset(
+            test, targets=targets, weights=sample_weights_test
+        )
 
         return (
             train_ds,
@@ -629,11 +665,9 @@ def create_datasets(
             test_features,
             train_labels,
             test_labels,
-            sample_weights,
-            sample_weights_test,
         )
-    else:
-        return train_ds, train_features, train_labels, sample_weights
+
+    return train_ds, train_features, train_labels
 
 
 def filter_masked(data: pd.DataFrame, other: Optional[pd.DataFrame] = None):
@@ -656,7 +690,7 @@ def filter_masked(data: pd.DataFrame, other: Optional[pd.DataFrame] = None):
 
     i = 0
     for _, value in data.iteritems():
-        if value != maskValue and not np.isnan(value):
+        if value != mask_value and not np.isnan(value):
             filtered_data.append(value)
             if other is not None:
                 if isinstance(other, pd.Series):
@@ -667,9 +701,10 @@ def filter_masked(data: pd.DataFrame, other: Optional[pd.DataFrame] = None):
         i += 1
 
     filtered_data = np.array(filtered_data)
+
     if other is not None:
         filtered_other = np.array(filtered_other)
 
         return filtered_data, filtered_other
-    else:
-        return filtered_data
+
+    return filtered_data

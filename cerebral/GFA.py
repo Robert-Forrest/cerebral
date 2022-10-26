@@ -37,9 +37,9 @@ def ensure_default_values_glass(data: pd.DataFrame) -> pd.DataFrame:
                 else:
                     data.at[i, "GFA"] = 2
             else:
-                data.at[i, "Dmax"] = cb.features.maskValue
+                data.at[i, "Dmax"] = cb.features.mask_value
         else:
-            data.at[i, "Dmax"] = cb.features.maskValue
+            data.at[i, "Dmax"] = cb.features.mask_value
 
         try:
             _ = data.at[i, "GFA"]
@@ -60,25 +60,25 @@ def ensure_default_values_glass(data: pd.DataFrame) -> pd.DataFrame:
                             or data.at[i, "Dmax"] == 0
                             or data.at[i, "Dmax"] is None
                         ):
-                            data.at[i, "Dmax"] = cb.features.maskValue
+                            data.at[i, "Dmax"] = cb.features.mask_value
                     else:
-                        data.at[i, "Dmax"] = cb.features.maskValue
+                        data.at[i, "Dmax"] = cb.features.mask_value
                 else:
-                    data.at[i, "Dmax"] = cb.features.maskValue
+                    data.at[i, "Dmax"] = cb.features.mask_value
             else:
-                data.at[i, "GFA"] = cb.features.maskValue
+                data.at[i, "GFA"] = cb.features.mask_value
         else:
-            data.at[i, "GFA"] = cb.features.maskValue
+            data.at[i, "GFA"] = cb.features.mask_value
 
         if "Tx" in row and "Tg" in row:
             if (
                 not np.isnan(row["Tx"])
                 and not np.isnan(row["Tg"])
-                and not row["Tx"] == cb.features.maskValue
-                and not row["Tg"] == cb.features.maskValue
+                and not row["Tx"] == cb.features.mask_value
+                and not row["Tg"] == cb.features.mask_value
             ):
                 data.at[i, "deltaT"] = row["Tx"] - row["Tg"]
             else:
-                data.at[i, "deltaT"] = cb.features.maskValue
+                data.at[i, "deltaT"] = cb.features.mask_value
 
     return data
