@@ -2,9 +2,13 @@
 
 import os
 
-import pandas as pd
 import metallurgy as mg
-from sklearn.metrics import ConfusionMatrixDisplay, confusion_matrix
+from sklearn.metrics import (
+    ConfusionMatrixDisplay,
+    confusion_matrix,
+    roc_curve,
+    auc,
+)
 import numpy as np
 from adjustText import adjust_text
 from scipy.cluster import hierarchy
@@ -60,6 +64,8 @@ def plot_training(history, model_name=None):
                 metric = cb.conf.targets[0].name + "_" + metric
 
             plt.ylabel(metric)
+
+            plt.tight_layout()
 
             if "_" in metric:
                 feature = metric.split("_")[0]
@@ -189,7 +195,7 @@ def plot_results_regression(
                 with open(results_file_path, "w") as results_file:
                     for j in range(len(tmp_train_compositions)):
                         results_file.write(
-                            tmp_train_compositions[j]
+                            tmp_train_compositions[j].to_string()
                             + " "
                             + str(tmp_train_labels[j])
                             + " "
@@ -230,7 +236,7 @@ def plot_results_regression(
                 with open(results_file_path, "w") as results_file:
                     for j in range(len(tmp_test_compositions)):
                         results_file.write(
-                            tmp_test_compositions[j]
+                            tmp_test_compositions[j].to_string()
                             + " "
                             + str(tmp_test_labels[j])
                             + " "
@@ -591,55 +597,56 @@ def plot_results_classification(
     """
 
     i = 0
-    for feature in train_labels:
-        if feature == "GFA":
+    for target in cb.conf.targets:
+        if target["type"] == "categorical":
+            target_name = target["name"]
+            classes = target["classes"]
 
             image_directory = cb.conf.image_directory
             if model_name is not None:
                 image_directory += str(model_name) + "/"
             if not os.path.exists(image_directory):
                 os.makedirs(image_directory)
-            if not os.path.exists(image_directory + feature):
-                os.makedirs(image_directory + feature)
+            if not os.path.exists(image_directory + target_name):
+                os.makedirs(image_directory + target_name)
 
             if len(train_labels.columns) > 1:
                 (
                     tmp_train_labels,
                     tmp_train_predictions,
                 ) = cb.features.filter_masked(
-                    train_labels[feature], train_predictions[i]
+                    train_labels[target_name], train_predictions[i]
                 )
                 if test_labels is not None:
                     (
                         tmp_test_labels,
                         tmp_test_predictions,
                     ) = cb.features.filter_masked(
-                        test_labels[feature], test_predictions[i]
+                        test_labels[target_name], test_predictions[i]
                     )
             else:
                 (
                     tmp_train_labels,
                     tmp_train_predictions,
                 ) = cb.features.filter_masked(
-                    train_labels[feature], train_predictions
+                    train_labels[target_name], train_predictions
                 )
                 if test_labels is not None:
                     (
                         tmp_test_labels,
                         tmp_test_predictions,
                     ) = cb.features.filter_masked(
-                        test_labels[feature], test_predictions
+                        test_labels[target_name], test_predictions
                     )
 
-            classes = ["Crystal", "Ribbon", "BMG"]
             if test_labels is not None:
                 sets = ["train", "test"]
             else:
                 sets = ["train"]
 
-            for set in sets:
+            for set_name in sets:
 
-                if set == "train":
+                if set_name == "train":
                     raw_predictions = tmp_train_predictions
                     labels = tmp_train_labels
                 else:
@@ -647,7 +654,11 @@ def plot_results_classification(
                     labels = tmp_test_labels
 
                 plot_multiclass_roc(
-                    labels, raw_predictions, set, image_directory
+                    labels,
+                    raw_predictions,
+                    target_name,
+                    set_name,
+                    image_directory,
                 )
 
                 predictions = []
@@ -656,6 +667,7 @@ def plot_results_classification(
 
                 fig = plt.figure()
                 ax = fig.add_subplot()
+                plt.grid(False)
 
                 confusion = confusion_matrix(labels, predictions)
                 confusionPlot = ConfusionMatrixDisplay(
@@ -794,9 +806,9 @@ def plot_results_classification(
 
                 plt.savefig(
                     image_directory
-                    + feature
-                    + "/GFA_confusion_"
-                    + set
+                    + target_name
+                    + "/confusion_"
+                    + set_name
                     + ".png"
                 )
                 plt.cla()
@@ -806,7 +818,7 @@ def plot_results_classification(
         i += 1
 
 
-def plot_multiclass_roc(true, pred, set, image_directory):
+def plot_multiclass_roc(true, pred, feature_name, set_name, image_directory):
     """Plot a reciever-operator characteristic graph for multiple classes.
 
     :group: plots
@@ -830,10 +842,8 @@ def plot_multiclass_roc(true, pred, set, image_directory):
 
             classPred.append(pred[j][i])
 
-        fpr[i], tpr[i], thresholds[i] = cb.metrics.roc_curve(
-            classTrue, classPred
-        )
-        roc_auc[i] = cb.metrics.auc(fpr[i], tpr[i])
+        fpr[i], tpr[i], thresholds[i] = roc_curve(classTrue, classPred)
+        roc_auc[i] = auc(fpr[i], tpr[i])
 
     fig, ax = plt.subplots()
     ax.plot([0, 1], [0, 1], "k--")
@@ -853,7 +863,7 @@ def plot_multiclass_roc(true, pred, set, image_directory):
         )
     ax.legend(loc="best")
     plt.tight_layout()
-    plt.savefig(image_directory + "GFA/GFA_ROC_" + set + ".png")
+    plt.savefig(image_directory + feature_name + "/ROC_" + set_name + ".png")
     plt.cla()
     plt.clf()
     plt.close()
