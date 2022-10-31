@@ -74,7 +74,7 @@ def build_input_layers(train_ds) -> list:
     """
 
     return [
-        tf.keras.Input(shape=(1,), name=feature, dtype="float64")
+        tf.keras.Input(shape=(1,), name=feature)
         for feature in train_ds.element_spec[0]
     ]
 
@@ -297,7 +297,6 @@ def build_model(
             target["name"]: target["weight"] for target in cb.conf.targets
         },
         optimizer=optimiser,
-        run_eagerly=False,
     )
 
     tf.keras.utils.plot_model(
