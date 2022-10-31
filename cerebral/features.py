@@ -1,15 +1,14 @@
 """Module providing feature processing functionality."""
 
-from typing import List, Optional, Union, Tuple
 from collections.abc import Iterable
+from typing import List, Optional, Tuple, Union
 
+import metallurgy as mg
 import numpy as np
 import pandas as pd
 import tensorflow as tf
-import metallurgy as mg
 
 import cerebral as cb
-
 
 mask_value = -1
 
@@ -215,10 +214,7 @@ def calculate_features(
             ],
             columns=["composition"],
         )
-        non_calculated_features = []
     else:
-        non_calculated_features = data.columns
-
         data["composition"] = [
             mg.Alloy(row["composition"], rescale=False)
             for _, row in data.iterrows()
@@ -227,6 +223,7 @@ def calculate_features(
     data = drop_invalid_compositions(data)
 
     if model is not None:
+        drop_correlated_features = False
         (
             input_features,
             target_names,
@@ -235,6 +232,8 @@ def calculate_features(
     else:
         input_features = cb.conf.input_features
         target_names = cb.conf.target_names
+
+    data = drop_unwanted_inputs(data, input_features, target_names)
 
     if len(required_features) > 0:
 
@@ -259,7 +258,12 @@ def calculate_features(
     input_features = []
 
     for feature in original_input_features:
-        if mg.get_property_function(feature) is None:
+        if "_linearmix" in feature:
+            input_features.append(feature)
+        elif "_deviation" in feature:
+            input_features.append(feature)
+            units[feature] = "%"
+        elif mg.get_property_function(feature) is None:
             input_features.append(feature + "_linearmix")
             input_features.append(feature + "_deviation")
 
@@ -311,11 +315,23 @@ def calculate_features(
         cb.plots.plot_feature_variation(data)
 
     if drop_correlated_features:
-        required_features.extend(non_calculated_features)
         data = drop_static_features(data, target_names, required_features)
         data = _drop_correlated_features(data, target_names, required_features)
 
     return data
+
+
+def drop_unwanted_inputs(
+    data: pd.DataFrame, input_features: List[str], target_names: List[str]
+) -> pd.DataFrame:
+    to_drop = []
+    for column in data:
+        if column == "composition":
+            continue
+        if column not in input_features and column not in target_names:
+            to_drop.append(column)
+
+    return data.drop(to_drop, axis="columns")
 
 
 def drop_invalid_compositions(data: pd.DataFrame) -> pd.DataFrame:

@@ -1,7 +1,7 @@
 """Module providing model construction functionality."""
 
-import os
 import datetime
+import os
 
 import tensorflow as tf
 
@@ -622,7 +622,13 @@ def predict(model, alloys):
 
     prediction_features = get_model_prediction_features(model)
 
-    data = cb.features.calculate_features(alloys, model=model)
+    data = cb.features.calculate_features(
+        alloys,
+        model=model,
+        merge_duplicates=False,
+        drop_correlated_features=False,
+    )
+    compositions = data.pop("composition")
 
     raw_predictions = model.predict(
         cb.features.df_to_dataset(data, prediction_features)
