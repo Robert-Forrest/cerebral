@@ -439,12 +439,13 @@ def fit(
     :group: models
     """
 
-    patience = 100
+    patience = max(max_epochs // 4, 1)
     min_delta = 0.001
 
-    monitor = "loss"
+    reduce_lr_patience = patience // 3
+    early_stop_patience = patience
 
-    test_data = None
+    monitor = "loss"
     if test_ds is not None:
         monitor = "val_loss"
 
@@ -455,7 +456,7 @@ def fit(
         callbacks=[
             tf.keras.callbacks.EarlyStopping(
                 monitor=monitor,
-                patience=patience,
+                patience=early_stop_patience,
                 min_delta=min_delta,
                 mode="auto",
                 restore_best_weights=True,
@@ -463,17 +464,10 @@ def fit(
             tf.keras.callbacks.ReduceLROnPlateau(
                 monitor=monitor,
                 factor=0.5,
-                patience=patience // 3,
+                patience=reduce_lr_patience,
                 mode="auto",
                 min_delta=min_delta * 10,
-                cooldown=patience // 4,
-                min_lr=0,
-            ),
-            tf.keras.callbacks.TensorBoard(
-                log_dir=cb.conf.output_directory
-                + "/logs/fit/"
-                + datetime.datetime.now().strftime("%Y%m%d-%H%M%S"),
-                histogram_freq=1,
+                cooldown=reduce_lr_patience // 2,
             ),
         ],
         validation_data=test_ds,
