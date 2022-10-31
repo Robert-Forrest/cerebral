@@ -8,7 +8,6 @@ import os
 import metallurgy as mg
 from omegaconf import OmegaConf
 
-from . import io
 from . import features
 from . import models
 from . import metrics
@@ -28,7 +27,6 @@ __all__ = [
     "metrics",
     "kfolds",
     "permutation",
-    "io",
     "plots",
     "tuning",
     "GFA",
