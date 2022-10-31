@@ -88,7 +88,7 @@ def setup(user_config: dict = {}):
             if "weight" not in conf.targets[i]:
                 conf.targets[i].weight = 1.0
             if "loss" not in conf.targets[i]:
-                conf.targets[i].loss = "MSE"
+                conf.targets[i].loss = "Huber"
 
     else:
         raise Exception("No targets set!")
