@@ -176,7 +176,6 @@ def calculate_features(
     data: pd.DataFrame,
     drop_correlated_features: bool = True,
     plot: bool = False,
-    additional_features: List[str] = [],
     required_features: List[str] = [],
     merge_duplicates: bool = True,
     model: Optional = None,
@@ -194,8 +193,6 @@ def calculate_features(
         If True, pairs of correlated feautres will be culled.
     plot
         If True, graphs of the data set population will be created.
-    additional_features
-        List of additional feature names to calculate.
     required_features
         List of required feature names to calculate.
     merge_duplicates
@@ -227,10 +224,9 @@ def calculate_features(
             for _, row in data.iterrows()
         ]
 
-    if model is not None:
-        drop_correlated_features = False
-        merge_duplicates = False
+    data = drop_invalid_compositions(data)
 
+    if model is not None:
         (
             input_features,
             target_names,
@@ -240,18 +236,7 @@ def calculate_features(
         input_features = cb.conf.input_features
         target_names = cb.conf.target_names
 
-    for additional_feature in additional_features:
-        actual_feature = additional_feature.split("_linearmix")[0].split(
-            "_deviation"
-        )[0]
-        if (
-            actual_feature not in input_features
-            and actual_feature not in target_names
-        ):
-            input_features.append(actual_feature)
-
     if len(required_features) > 0:
-        drop_correlated_features = False
 
         for feature in required_features:
             if feature in input_features:
@@ -307,7 +292,6 @@ def calculate_features(
 
     input_feature_values = {}
     for feature in input_features:
-        print(feature)
         input_feature_values[feature] = mg.calculate(
             data["composition"], feature
         )
@@ -320,11 +304,9 @@ def calculate_features(
     data = data.fillna(mask_value)
 
     if merge_duplicates:
-        print("Merging")
         data = merge_duplicate_compositions(data)
 
     if plot:
-        print("Plotting")
         cb.plots.plot_correlation(data)
         cb.plots.plot_feature_variation(data)
 
@@ -336,8 +318,16 @@ def calculate_features(
     return data
 
 
+def drop_invalid_compositions(data: pd.DataFrame) -> pd.DataFrame:
+    to_drop = []
+    for i, row in data.iterrows():
+        if abs(1 - row["composition"].total_percentage) > 0.01:
+            to_drop.append(i)
+
+    return data.drop(to_drop).reset_index(drop=True)
+
+
 def _drop_correlated_features(data, target_names, required_features):
-    print("Dropping correlated")
     correlation = np.array(data.corr())
 
     correlated_dropped_features = []
@@ -383,10 +373,9 @@ def _drop_correlated_features(data, target_names, required_features):
 
     for feature in correlated_dropped_features:
         if feature not in target_names and feature not in required_features:
-            print("Dropping", feature)
             data = data.drop(feature, axis="columns")
 
-    return data
+    return data.reset_index(drop=True)
 
 
 def drop_static_features(
@@ -409,7 +398,7 @@ def drop_static_features(
         Dictionary of prediction target names.
 
     """
-    print("Dropping static")
+
     static_features = []
 
     quartile_dispersions = {}
@@ -436,7 +425,7 @@ def drop_static_features(
         if feature not in target_names and feature not in required_features:
             data = data.drop(feature, axis="columns")
 
-    return data
+    return data.reset_index(drop=True)
 
 
 def merge_duplicate_compositions(data: pd.DataFrame) -> pd.DataFrame:
@@ -461,13 +450,9 @@ def merge_duplicate_compositions(data: pd.DataFrame) -> pd.DataFrame:
         alloy = row["composition"]
         composition_str = alloy.to_string()
 
-        if abs(1 - sum(alloy.composition.values())) > 0.01:
-            print("Invalid composition:", row["composition"], i)
-            to_drop.append(i)
-
-        elif composition_str in seen_compositions:
+        if composition_str in seen_compositions:
             if composition_str not in duplicate_compositions:
-                duplicate_compositions[composition_str] = [
+                duplicate_compositions[alloy] = [
                     data.iloc[seen_compositions.index(composition_str)]
                 ]
             duplicate_compositions[composition_str].append(row)
@@ -478,9 +463,7 @@ def merge_duplicate_compositions(data: pd.DataFrame) -> pd.DataFrame:
 
     to_drop = []
     for i, row in data.iterrows():
-        composition = row["composition"].to_string()
-
-        if composition in duplicate_compositions:
+        if row["composition"].to_string() in duplicate_compositions:
             to_drop.append(i)
 
     data = data.drop(to_drop)
@@ -520,7 +503,8 @@ def merge_duplicate_compositions(data: pd.DataFrame) -> pd.DataFrame:
     if len(deduplicated_rows) > 0:
         deduplicated_data = pd.concat(deduplicated_rows, ignore_index=True)
         data = pd.concat([data, deduplicated_data], ignore_index=True)
-    return data
+
+    return data.reset_index(drop=True)
 
 
 def get_features_from_model(model):
@@ -624,14 +608,17 @@ def df_to_dataset(
             label_names.append(feature["name"])
 
     if len(label_names) > 0:
-        labels = pd.concat([dataframe.pop(x) for x in label_names], axis=1)
+        label_values = {}
+        for label in label_names:
+            label_values[label] = dataframe.pop(label)
+
         if len(weights) > 0:
             dataset = tf.data.Dataset.from_tensor_slices(
-                (dict(dataframe), labels, weights)
+                (dict(dataframe), label_values, weights)
             )
         else:
             dataset = tf.data.Dataset.from_tensor_slices(
-                (dict(dataframe), labels)
+                (dict(dataframe), label_values)
             )
     else:
         dataset = tf.data.Dataset.from_tensor_slices(dict(dataframe))
@@ -641,8 +628,8 @@ def df_to_dataset(
         if cb.conf.get("train", None) is not None:
             batch_size = cb.conf.train.get("batch_size", batch_size)
 
-    dataset = dataset.batch(batch_size)
-    # dataset = dataset.prefetch(batch_size)
+    dataset = dataset.batch(batch_size).prefetch(batch_size)
+
     # dataset = dataset.cache()
 
     return dataset
