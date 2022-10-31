@@ -38,6 +38,104 @@ def setup_units():
             inverse_units[feature] = split_units[1] + "/" + split_units[0]
 
 
+def load_data(
+    plot: bool = False,
+    drop_correlated_features: bool = True,
+    model=None,
+    postprocess: bool = None,
+    save_csv: bool = False,
+) -> pd.DataFrame:
+    """Load and process data for use by cerebral.
+
+    :group: utils
+
+    Parameters
+    ----------
+
+    plot
+        If True, plot analytical graphs of the raw data.
+    drop_correlated_features
+        If True, cull pairs of correlated features.
+    model
+        Use an existing model to extract particular required input features.
+    postprocess
+        A function to run on the data after loading.
+    save_csv
+        If True, save the calculated features as a csv file.
+
+    """
+
+    data_directory = cb.conf.data.directory
+    data_files = cb.conf.data.files
+
+    data = []
+    for data_file in data_files:
+        if ".csv" in data_file:
+            rawData = pd.read_csv(data_directory + data_file)
+        elif ".xls" in data_file:
+            rawData = pd.read_excel(data_directory + data_file)
+
+        rawData = rawData.loc[:, ~rawData.columns.str.contains("^Unnamed")]
+
+        if "composition" not in rawData:
+            rawData = extract_compositions(rawData)
+
+        data.append(rawData)
+
+    data = pd.concat(data, ignore_index=True)
+
+    data = cb.features.calculate_features(
+        data,
+        plot=plot,
+        drop_correlated_features=drop_correlated_features,
+        model=model,
+    )
+
+    data = data.fillna(cb.features.mask_value)
+
+    if postprocess is not None:
+        data = postprocess(data)
+
+    if save_csv:
+        data.to_csv(data_directory + "calculated_features.csv")
+
+    return data
+
+
+def extract_compositions(data: pd.DataFrame) -> pd.DataFrame:
+    """Extracts alloy compositions from data files formatted with columns per
+    element.
+
+    :group: utils
+
+    Parameters
+    ----------
+
+    data
+        The raw data in a DataFrame.
+
+    """
+
+    compositions = []
+    columns_to_drop = []
+    for _, row in data.iterrows():
+        composition = {}
+        for column in data.columns:
+            if column not in cb.conf.target_names:
+                if column not in columns_to_drop:
+                    columns_to_drop.append(column)
+                if row[column] > 0:
+                    composition[column] = row[column] / 100.0
+
+        compositions.append(mg.Alloy(composition, rescale=False))
+
+    data["composition"] = compositions
+    for column in columns_to_drop:
+        data = data.drop(column, axis="columns")
+
+    return data
+
+
 def prettyName(feature_name: str) -> str:
     """Converts a a feature name string to a LaTeX formatted string
 
