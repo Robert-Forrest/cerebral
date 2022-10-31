@@ -287,7 +287,16 @@ def calculate_features(
             continue
 
         if not np.issubdtype(data[column].dtype, np.number):
-            classes = data[column].unique()
+            unique_classes = data[column].unique()
+            classes = []
+            for c in unique_classes:
+                if isinstance(c, str) or not np.isnan(c):
+                    classes.append(c)
+
+            if column in target_names:
+                for i in range(len(cb.conf.targets)):
+                    if cb.conf.targets[i].name == column:
+                        cb.conf.targets[i].classes = classes
 
             data[column] = (
                 data[column]
