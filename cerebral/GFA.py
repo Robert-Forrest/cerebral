@@ -16,7 +16,7 @@ def ensure_default_values_glass(data: pd.DataFrame) -> pd.DataFrame:
     ----------
 
     data
-        Data as read in by cb.io.load_data
+        Data as read in by cb.features.load_data
 
     """
 

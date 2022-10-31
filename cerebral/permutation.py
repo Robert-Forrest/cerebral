@@ -31,7 +31,7 @@ def permutation(postprocess=None):
     open(cb.conf.output_directory + "/permuted_features.dat", "w")
 
     model = cb.models.load(cb.conf.output_directory + "/model")
-    originalData = cb.io.load_data(
+    originalData = cb.features.load_data(
         model=model, plot=False, postprocess=postprocess
     )
 
