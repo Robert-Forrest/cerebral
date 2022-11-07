@@ -21,7 +21,7 @@ import cerebral as cb
 plt.rc("axes", axisbelow=True)
 
 
-def plot_training(history, model_name=None):
+def plot_training(history):
     """Plot metrics over the course of training.
 
     :group: plots
@@ -32,10 +32,6 @@ def plot_training(history, model_name=None):
         os.makedirs(cb.conf.image_directory)
 
     image_directory = cb.conf.image_directory
-    if model_name is not None:
-        image_directory += str(model_name) + "/"
-        if not os.path.exists(image_directory):
-            os.makedirs(image_directory)
 
     for metric in history.history:
 
@@ -79,16 +75,65 @@ def plot_training(history, model_name=None):
             plt.close()
 
 
+def write_errors(compositions, labels, predictions, suffix=None):
+    for target_index, target in enumerate(cb.conf.targets):
+        if target["type"] != "numerical":
+            continue
+
+        target_name = target["name"]
+
+        results_file_path = (
+            cb.conf.output_directory + "/" + target_name + "_error"
+        )
+        if suffix is not None:
+            results_file_path += "_" + suffix
+        results_file_path += ".dat"
+
+        with open(results_file_path, "w") as results_file:
+            for j in range(len(compositions)):
+                results_file.write(
+                    compositions.iloc[j].to_string()
+                    + " "
+                    + str(labels[target["name"]].iloc[j])
+                    + " "
+                    + str(predictions[target_index][j])
+                    + " "
+                    + str(
+                        predictions[target_index][j]
+                        - labels[target["name"]].iloc[j]
+                    )
+                    + "\n"
+                )
+
+
+def gather_labelled_errors(labels, predictions, compositions, errors):
+    labelled_errors = []
+    errors = list(errors)
+    top_errors = sorted(errors, reverse=True)[:3]
+    for e in top_errors:
+        index = errors.index(e)
+        labelled_errors.append(
+            [
+                labels[index],
+                predictions[index],
+                compositions[index],
+            ]
+        )
+    return labelled_errors
+
+
 def plot_results_regression(
     train_labels,
     train_predictions,
+    train_errors,
     test_labels=None,
     test_predictions=None,
+    test_errors=None,
     train_compositions=None,
     test_compositions=None,
     train_errorbars=None,
     test_errorbars=None,
-    model_name=None,
+    metrics=None,
 ):
     """Plot true versus prediction for regression outputs.
 
@@ -97,367 +142,285 @@ def plot_results_regression(
     """
 
     image_directory = cb.conf.image_directory
-    if model_name is not None:
-        image_directory += str(model_name) + "/"
     if not os.path.exists(image_directory):
         os.makedirs(image_directory)
 
-    i = 0
-    for feature in train_labels:
-        if feature != "GFA":
+    for i, target in enumerate(cb.conf.targets):
+        if target["type"] != "numerical":
+            continue
 
+        target_name = target["name"]
+
+        (
+            masked_train_labels,
+            masked_train_predictions,
+        ) = cb.features.filter_masked(
+            train_labels[target_name], train_predictions[i]
+        )
+        if train_compositions is not None:
+            _, masked_train_compositions = cb.features.filter_masked(
+                train_labels[target_name], train_compositions
+            )
+        if train_errorbars is not None:
+            _, masked_train_errorbars = cb.features.filter_masked(
+                train_labels[target_name], train_errorbars[i]
+            )
+
+        _, masked_train_errors = cb.features.filter_masked(
+            train_labels[target_name], train_errors[i]
+        )
+        abs_train_errors = np.abs(masked_train_errors).tolist()
+        abs_test_errors = None
+
+        if test_labels is not None:
             (
-                tmp_train_labels,
-                tmp_train_predictions,
+                masked_test_labels,
+                masked_test_predictions,
             ) = cb.features.filter_masked(
-                train_labels[feature], train_predictions[i]
+                test_labels[target_name], test_predictions[i]
             )
-            if train_compositions is not None:
-                _, tmp_train_compositions = cb.features.filter_masked(
-                    train_labels[feature], train_compositions
-                )
-            if train_errorbars is not None:
-                _, tmp_train_errorbars = cb.features.filter_masked(
-                    train_labels[feature], train_errorbars[i]
-                )
-
-            train_R_sq = cb.metrics.calc_R_sq(
-                tmp_train_labels, tmp_train_predictions
-            )
-            train_RMSE = cb.metrics.calc_RMSE(
-                tmp_train_labels, tmp_train_predictions
-            )
-            train_MAE = cb.metrics.calc_MAE(
-                tmp_train_labels, tmp_train_predictions
-            )
-
-            train_error = list(tmp_train_predictions - tmp_train_labels)
-            abs_train_error = np.abs(train_error).tolist()
-
-            test_error = None
-            abs_test_error = None
-
-            if test_labels is not None:
-                (
-                    tmp_test_labels,
-                    tmp_test_predictions,
-                ) = cb.features.filter_masked(
-                    test_labels[feature], test_predictions[i]
-                )
-                if test_compositions is not None:
-                    _, tmp_test_compositions = cb.features.filter_masked(
-                        test_labels[feature], test_compositions
-                    )
-                if test_errorbars is not None:
-                    _, tmp_test_errorbars = cb.features.filter_masked(
-                        test_labels[feature], test_errorbars[i]
-                    )
-
-                test_R_sq = cb.metrics.calc_R_sq(
-                    tmp_test_labels, tmp_test_predictions
-                )
-                test_RMSE = cb.metrics.calc_RMSE(
-                    tmp_test_labels, tmp_test_predictions
-                )
-                test_MAE = cb.metrics.calc_MAE(
-                    tmp_test_labels, tmp_test_predictions
-                )
-
-                test_error = list(tmp_test_predictions - tmp_test_labels)
-                abs_test_error = np.abs(test_error).tolist()
-
-            labelled_errors = []
-            if train_compositions is not None:
-                top_errors = sorted(abs_train_error, reverse=True)[:3]
-                for e in top_errors:
-                    index = abs_train_error.index(e)
-                    labelled_errors.append(
-                        [
-                            tmp_train_labels[index],
-                            tmp_train_predictions[index],
-                            tmp_train_compositions[index],
-                        ]
-                    )
-                if model_name is not None:
-                    results_file_path = (
-                        cb.conf.output_directory
-                        + "/"
-                        + str(model_name)
-                        + "_"
-                        + feature
-                        + "_error.dat"
-                    )
-                else:
-                    results_file_path = (
-                        cb.conf.output_directory + "/" + feature + "_error.dat"
-                    )
-
-                with open(results_file_path, "w") as results_file:
-                    for j in range(len(tmp_train_compositions)):
-                        results_file.write(
-                            tmp_train_compositions[j].to_string()
-                            + " "
-                            + str(tmp_train_labels[j])
-                            + " "
-                            + str(tmp_train_predictions[j])
-                            + " "
-                            + str(train_error[j])
-                            + "\n"
-                        )
-
             if test_compositions is not None:
-                top_errors = sorted(abs_test_error, reverse=True)[:3]
-                for e in top_errors:
-                    index = abs_test_error.index(e)
-                    labelled_errors.append(
-                        [
-                            tmp_test_labels[index],
-                            tmp_test_predictions[index],
-                            tmp_test_compositions[index],
-                        ]
-                    )
+                _, masked_test_compositions = cb.features.filter_masked(
+                    test_labels[target_name], test_compositions
+                )
+            if test_errorbars is not None:
+                _, masked_test_errorbars = cb.features.filter_masked(
+                    test_labels[target_name], test_errorbars[i]
+                )
 
-                if model_name is not None:
-                    results_file_path = (
-                        cb.conf.output_directory
-                        + "/"
-                        + str(model_name)
-                        + "_"
-                        + feature
-                        + "_error_test.dat"
-                    )
-                else:
-                    results_file_path = (
-                        cb.conf.output_directory
-                        + "/"
-                        + feature
-                        + "_error_test.dat"
-                    )
-                with open(results_file_path, "w") as results_file:
-                    for j in range(len(tmp_test_compositions)):
-                        results_file.write(
-                            tmp_test_compositions[j].to_string()
-                            + " "
-                            + str(tmp_test_labels[j])
-                            + " "
-                            + str(tmp_test_predictions[j])
-                            + " "
-                            + str(test_error[j])
-                            + "\n"
-                        )
+            abs_test_errors = np.abs(test_errors).tolist()
+            _, masked_test_errors = cb.features.filter_masked(
+                test_labels[target_name], test_errors[i]
+            )
 
-            fig, ax = plt.subplots(figsize=(5, 5))
-            # plt.grid(alpha=.4)
+        labelled_errors = []
+        if train_compositions is not None:
+            labelled_errors.extend(
+                gather_labelled_errors(
+                    masked_train_labels,
+                    masked_train_predictions,
+                    masked_train_compositions,
+                    masked_train_errors,
+                )
+            )
 
-            if train_errorbars is not None:
+        if test_compositions is not None:
+            labelled_errors.extend(
+                gather_labelled_errors(
+                    masked_test_labels,
+                    masked_test_predictions,
+                    masked_test_compositions,
+                    masked_test_errors,
+                )
+            )
+
+        fig, ax = plt.subplots(figsize=(5, 5))
+        # plt.grid(alpha=.4)
+
+        if train_errorbars is not None:
+            ax.errorbar(
+                masked_train_labels,
+                masked_train_predictions,
+                yerr=masked_train_errorbars,
+                fmt="rx",
+                ms=5,
+                alpha=0.8,
+                capsize=1,
+                elinewidth=0.75,
+            )
+        else:
+            if test_labels is not None:
+                ax.scatter(
+                    masked_train_labels,
+                    masked_train_predictions,
+                    label="Train",
+                    s=5,
+                    alpha=0.8,
+                    marker="x",
+                )
+            else:
+                ax.scatter(
+                    masked_train_labels,
+                    masked_train_predictions,
+                    s=10,
+                    alpha=0.8,
+                    marker="x",
+                )
+
+        if test_labels is not None:
+            if test_errorbars is not None:
                 ax.errorbar(
-                    tmp_train_labels,
-                    tmp_train_predictions,
-                    yerr=tmp_train_errorbars,
-                    fmt="rx",
+                    masked_test_labels,
+                    masked_test_predictions,
+                    yerr=masked_test_errorbars,
+                    fmt="bx",
                     ms=5,
                     alpha=0.8,
                     capsize=1,
                     elinewidth=0.75,
                 )
             else:
-                if test_labels is not None:
-                    ax.scatter(
-                        tmp_train_labels,
-                        tmp_train_predictions,
-                        label="Train",
-                        s=10,
-                        alpha=0.8,
-                        marker="x",
-                        c="r",
-                    )
-                else:
-                    ax.scatter(
-                        tmp_train_labels,
-                        tmp_train_predictions,
-                        s=10,
-                        alpha=0.8,
-                        marker="x",
-                        c="r",
-                    )
-
-            if test_labels is not None:
-                if test_errorbars is not None:
-                    ax.errorbar(
-                        tmp_test_labels,
-                        tmp_test_predictions,
-                        yerr=tmp_test_errorbars,
-                        fmt="bx",
-                        ms=5,
-                        alpha=0.8,
-                        capsize=1,
-                        elinewidth=0.75,
-                    )
-                else:
-                    ax.scatter(
-                        tmp_test_labels,
-                        tmp_test_predictions,
-                        label="Test",
-                        s=10,
-                        alpha=0.8,
-                        marker="x",
-                    )
-                min_point = np.min(
-                    [np.min(tmp_train_labels), np.min(tmp_test_labels)]
-                )
-                max_point = np.max(
-                    [np.max(tmp_train_labels), np.max(tmp_test_labels)]
-                )
-            else:
-                min_point = np.min(tmp_train_labels)
-                max_point = np.max(tmp_train_labels)
-
-            lims = [min_point - 0.1 * min_point, max_point + 0.1 * min_point]
-            ax.plot(lims, lims, "--k")
-
-            annotations = []
-            for e in labelled_errors:
-                annotations.append(
-                    plt.text(
-                        e[0],
-                        e[1],
-                        mg.Alloy(e[2]).to_pretty_string(),
-                        fontsize=8,
-                    )
+                ax.scatter(
+                    masked_test_labels,
+                    masked_test_predictions,
+                    label="Test",
+                    s=10,
+                    alpha=0.8,
+                    marker="o",
                 )
 
-            plt.xlabel(
-                "True "
-                + cb.features.prettyName(feature)
-                + " ("
-                + cb.features.units[feature]
-                + ")"
+            min_point = np.min(
+                [np.min(masked_train_labels), np.min(masked_test_labels)]
+            )
+            max_point = np.max(
+                [np.max(masked_train_labels), np.max(masked_test_labels)]
+            )
+        else:
+            min_point = np.min(masked_train_labels)
+            max_point = np.max(masked_train_labels)
+
+        lims = [min_point - 0.1 * min_point, max_point + 0.1 * min_point]
+        ax.plot(lims, lims, "--k")
+
+        annotations = []
+        for e in labelled_errors:
+            annotations.append(
+                plt.text(
+                    e[0],
+                    e[1],
+                    mg.Alloy(e[2]).to_pretty_string(),
+                    fontsize=8,
+                )
             )
 
-            plt.ylabel(
-                "Predicted "
-                + cb.features.prettyName(feature)
-                + " ("
-                + cb.features.units[feature]
-                + ")"
-            )
+        plt.xlabel(
+            "True "
+            + cb.features.prettyName(target_name)
+            + " ("
+            + cb.features.units[target_name]
+            + ")"
+        )
 
+        plt.ylabel(
+            "Predicted "
+            + cb.features.prettyName(target_name)
+            + " ("
+            + cb.features.units[target_name]
+            + ")"
+        )
+
+        if metrics is not None:
             descriptionStr = (
                 r"$R^2$"
                 + ": "
-                + str(round(train_R_sq, 3))
+                + str(round(metrics[target_name]["train"]["R_sq"], 3))
                 + "\nRMSE: "
-                + str(round(train_RMSE, 3))
+                + str(round(metrics[target_name]["train"]["RMSE"], 3))
                 + " "
-                + cb.features.units[feature]
+                + cb.features.units[target_name]
                 + "\nMAE: "
-                + str(round(train_MAE, 3))
+                + str(round(metrics[target_name]["train"]["MAE"], 3))
                 + " "
-                + cb.features.units[feature]
+                + cb.features.units[target_name]
             )
 
             if test_labels is not None:
                 descriptionStr = (
                     r"$R^2$"
                     + ": Train: "
-                    + str(round(train_R_sq, 3))
+                    + str(round(metrics[target_name]["train"]["R_sq"], 3))
                     + ", Test: "
-                    + str(round(test_R_sq, 3))
+                    + str(round(metrics[target_name]["test"]["R_sq"], 3))
                     + "\nRMSE ("
-                    + cb.features.units[feature]
+                    + cb.features.units[target_name]
                     + "): Train: "
-                    + str(round(train_RMSE, 3))
+                    + str(round(metrics[target_name]["train"]["RMSE"], 3))
                     + ", Test: "
-                    + str(round(test_RMSE, 3))
+                    + str(round(metrics[target_name]["test"]["RMSE"], 3))
                     + "\nMAE ("
-                    + cb.features.units[feature]
+                    + cb.features.units[target_name]
                     + "): Train: "
-                    + str(round(train_MAE, 3))
+                    + str(round(metrics[target_name]["train"]["MAE"], 3))
                     + ", Test: "
-                    + str(round(test_MAE, 3))
+                    + str(round(metrics[target_name]["test"]["MAE"], 3))
                 )
-
-            legend = plt.legend(loc="lower right")
             ob = mpl.offsetbox.AnchoredText(descriptionStr, loc="upper left")
             ob.patch.set_boxstyle("round,pad=0.,rounding_size=0.2")
             ax.add_artist(ob)
 
-            ax.set_aspect("equal", "box")
+        legend = plt.legend(loc="lower right")
+        ax.set_aspect("equal", "box")
 
-            X = list(tmp_train_labels)
-            if test_labels is not None:
-                X.extend(tmp_test_labels)
-            Y = list(tmp_train_predictions)
-            if test_predictions is not None:
-                Y.extend(tmp_test_predictions)
+        X = list(masked_train_labels)
+        if test_labels is not None:
+            X.extend(masked_test_labels)
+        Y = list(masked_train_predictions)
+        if test_predictions is not None:
+            Y.extend(masked_test_predictions)
 
-            adjust_text(
-                annotations,
-                X,
-                Y,
-                add_objects=[legend, ob],
-                arrowprops=dict(
-                    arrowstyle="-|>",
-                    color="k",
-                    alpha=0.8,
-                    lw=0.5,
-                    mutation_scale=5,
-                ),
-                lim=10000,
-                precision=0.001,
-                expand_text=(1.05, 2.5),
-                expand_points=(1.05, 1.8),
-            )
-            # force_text=0.005, force_points=0.005) tmp_train_labels,
-            # tmp_train_predictions,
+        adjust_text(
+            annotations,
+            X,
+            Y,
+            add_objects=[legend, ob],
+            arrowprops=dict(
+                arrowstyle="-|>",
+                color="k",
+                alpha=0.8,
+                lw=0.5,
+                mutation_scale=5,
+            ),
+            lim=10000,
+            precision=0.001,
+            expand_text=(1.05, 2.5),
+            expand_points=(1.05, 1.8),
+        )
+        # force_text=0.005, force_points=0.005) masked_train_labels,
+        # masked_train_predictions,
 
-            plt.tight_layout()
+        plt.tight_layout()
 
-            if not os.path.exists(image_directory + feature):
-                os.makedirs(image_directory + feature)
-            plt.savefig(
-                image_directory
-                + feature
-                + "/"
-                + feature
-                + "_TrueVsPredicted.png"
-            )
-            plt.cla()
-            plt.clf()
-            plt.close()
+        if not os.path.exists(image_directory + target_name):
+            os.makedirs(image_directory + target_name)
+        plt.savefig(
+            image_directory
+            + target_name
+            + "/"
+            + target_name
+            + "_TrueVsPredicted.png"
+        )
+        plt.cla()
+        plt.clf()
+        plt.close()
 
-            train_error = list(tmp_train_predictions - tmp_train_labels)
+        if test_labels is not None:
+            plt.hist(masked_train_errors, label="Train", density=True, bins=40)
+            plt.hist(masked_test_errors, label="Test", density=True, bins=40)
+            plt.legend(loc="best")
+            plt.ylabel("Density")
+        else:
+            plt.hist(masked_train_errors, bins="auto")
+            plt.ylabel("Count")
 
-            if test_labels is not None:
-                plt.hist(train_error, label="Train", density=True, bins=40)
-                plt.hist(test_error, label="Test", density=True, bins=40)
-                plt.legend(loc="best")
-                plt.ylabel("Density")
-            else:
-                plt.hist(train_error, bins="auto")
-                plt.ylabel("Count")
+        # plt.grid(alpha=.4)
+        plt.xlabel(
+            cb.features.prettyName(target_name)
+            + " prediction error ("
+            + cb.features.units[target_name]
+            + ")"
+        )
 
-            # plt.grid(alpha=.4)
-            plt.xlabel(
-                cb.features.prettyName(feature)
-                + " prediction error ("
-                + cb.features.units[feature]
-                + ")"
-            )
-
-            plt.tight_layout()
-            plt.savefig(
-                image_directory
-                + feature
-                + "/"
-                + feature
-                + "_PredictionError.png"
-            )
-            plt.cla()
-            plt.clf()
-            plt.close()
-
-        i += 1
+        plt.tight_layout()
+        plt.savefig(
+            image_directory
+            + target_name
+            + "/"
+            + target_name
+            + "_PredictionError.png"
+        )
+        plt.cla()
+        plt.clf()
+        plt.close()
 
 
 def plot_results_regression_heatmap(train_labels, train_predictions):
@@ -584,11 +547,7 @@ def plot_results_regression_heatmap(train_labels, train_predictions):
 
 
 def plot_results_classification(
-    train_labels,
-    train_predictions,
-    test_labels=None,
-    test_predictions=None,
-    model_name=None,
+    train_labels, train_predictions, test_labels=None, test_predictions=None
 ):
     """Plot a confusion matrix for a classifier.
 
@@ -603,8 +562,6 @@ def plot_results_classification(
             classes = target["classes"]
 
             image_directory = cb.conf.image_directory
-            if model_name is not None:
-                image_directory += str(model_name) + "/"
             if not os.path.exists(image_directory):
                 os.makedirs(image_directory)
             if not os.path.exists(image_directory + target_name):
@@ -612,29 +569,29 @@ def plot_results_classification(
 
             if len(train_labels.columns) > 1:
                 (
-                    tmp_train_labels,
-                    tmp_train_predictions,
+                    masked_train_labels,
+                    masked_train_predictions,
                 ) = cb.features.filter_masked(
                     train_labels[target_name], train_predictions[i]
                 )
                 if test_labels is not None:
                     (
-                        tmp_test_labels,
-                        tmp_test_predictions,
+                        masked_test_labels,
+                        masked_test_predictions,
                     ) = cb.features.filter_masked(
                         test_labels[target_name], test_predictions[i]
                     )
             else:
                 (
-                    tmp_train_labels,
-                    tmp_train_predictions,
+                    masked_train_labels,
+                    masked_train_predictions,
                 ) = cb.features.filter_masked(
                     train_labels[target_name], train_predictions
                 )
                 if test_labels is not None:
                     (
-                        tmp_test_labels,
-                        tmp_test_predictions,
+                        masked_test_labels,
+                        masked_test_predictions,
                     ) = cb.features.filter_masked(
                         test_labels[target_name], test_predictions
                     )
@@ -647,11 +604,11 @@ def plot_results_classification(
             for set_name in sets:
 
                 if set_name == "train":
-                    raw_predictions = tmp_train_predictions
-                    labels = tmp_train_labels
+                    raw_predictions = masked_train_predictions
+                    labels = masked_train_labels
                 else:
-                    raw_predictions = tmp_test_predictions
-                    labels = tmp_test_labels
+                    raw_predictions = masked_test_predictions
+                    labels = masked_test_labels
 
                 plot_multiclass_roc(
                     labels,

@@ -3,6 +3,7 @@
 import datetime
 import os
 
+import numpy as np
 import tensorflow as tf
 
 import cerebral as cb
@@ -339,12 +340,7 @@ def load(path):
     )
 
 
-def train_model(
-    data,
-    max_epochs=1000,
-    plot=False,
-    model_name=None,
-):
+def train_model(data, max_epochs=1000, plot=False):
     train, test = cb.features.train_test_split(data)
 
     train_compositions = train.pop("composition")
@@ -377,19 +373,13 @@ def train_model(
         test_ds,
         max_epochs,
         plot,
-        model_name,
     )
 
     return model, history, train_data, test_data
 
 
 def compile_and_fit(
-    train_ds,
-    train_features,
-    test_ds=None,
-    max_epochs=1000,
-    plot=False,
-    model_name=None,
+    train_ds, train_features, test_ds=None, max_epochs=1000, plot=False
 ):
     """Compile a model, and perform training.
 
@@ -419,11 +409,8 @@ def compile_and_fit(
     )
 
     if plot:
-        cb.plots.plot_training(history, model_name=model_name)
-        if model_name is not None:
-            save(model, cb.conf.output_directory + "/model_" + str(model_name))
-        else:
-            save(model, cb.conf.output_directory + "/model")
+        cb.plots.plot_training(history)
+        save(model, cb.conf.output_directory + "/model")
 
     return model, history
 
@@ -476,33 +463,7 @@ def fit(
     return model, history
 
 
-def evaluate_model(
-    model,
-    train_ds,
-    train_labels,
-    test_ds=None,
-    test_labels=None,
-    plot=True,
-    train_compositions=None,
-    test_compositions=None,
-    model_name=None,
-):
-    """Evaluate the performance of a trained model by comparison to known data.
-
-    :group: models
-    """
-
-    train_errorbars = None
-    test_errorbars = None
-
-    train_predictions = []
-    test_predictions = []
-
-    prediction_names = [
-        f["name"] for f in get_model_prediction_features(model)
-    ]
-
-    train_predictions = model.predict(train_ds)
+def extract_predictions(predictions, prediction_names):
 
     if len(prediction_names) == 1:
         if (
@@ -511,74 +472,169 @@ def evaluate_model(
             ].type
             == "numerical"
         ):
-            train_predictions = [train_predictions.flatten()]
+            predictions = [predictions.flatten()]
     else:
-        for i in range(len(train_predictions)):
+        for i in range(len(predictions)):
             if (
                 cb.conf.targets[
                     cb.conf.target_names.index(prediction_names[i])
                 ].type
                 == "numerical"
             ):
-                train_predictions[i] = train_predictions[i].flatten()
+                predictions[i] = predictions[i].flatten()
 
-    if test_ds:
-        test_predictions = model.predict(test_ds)
-        if len(prediction_names) == 1:
-            if (
-                cb.conf.targets[
-                    cb.conf.target_names.index(prediction_names[0])
-                ].type
-                == "numerical"
-            ):
-                test_predictions = [test_predictions.flatten()]
+    return predictions
+
+
+def calculate_prediction_errors(labels, predictions, prediction_names):
+    errors = []
+    for i in range(len(predictions)):
+        errors.append([])
+        target = cb.conf.targets[
+            cb.conf.target_names.index(prediction_names[i])
+        ]
+
+        if target["type"] == "numerical":
+            for j in range(len(predictions[i])):
+                if labels[target["name"]].iloc[j] != cb.features.mask_value:
+                    errors[i].append(
+                        predictions[i][j] - labels[target["name"]].iloc[j]
+                    )
+                else:
+                    errors[i].append(0)
         else:
-            for i in range(len(test_predictions)):
+            for j in range(len(predictions[i])):
                 if (
-                    cb.conf.targets[
-                        cb.conf.target_names.index(prediction_names[i])
-                    ].type
-                    == "numerical"
+                    labels[target["name"]].iloc[j] != cb.features.mask_value
+                ) and (
+                    np.argmax(predictions[i][j])
+                    != labels[target["name"]].iloc[j]
                 ):
-                    test_predictions[i] = test_predictions[i].flatten()
+                    errors[i].append(True)
+                else:
+                    errors[i].append(False)
+
+    return errors
+
+
+def calculate_regression_metrics(labels, predictions):
+    metrics = {}
+    metrics["R_sq"] = cb.metrics.calc_R_sq(labels, predictions)
+    metrics["RMSE"] = cb.metrics.calc_RMSE(labels, predictions)
+    metrics["MAE"] = cb.metrics.calc_MAE(labels, predictions)
+    return metrics
+
+
+def evaluate_model(
+    model,
+    train_ds,
+    train_labels,
+    test_ds=None,
+    test_labels=None,
+    plot=False,
+    train_compositions=None,
+    test_compositions=None,
+):
+    """Evaluate the performance of a trained model by comparison to known data.
+
+    :group: models
+    """
+
+    metrics = {}
+    train_errorbars = None
+    test_errorbars = None
+
+    train_predictions = []
+
+    masked_train_labels = {}
+    masked_train_predictions = {}
+
+    prediction_names = [
+        f["name"] for f in get_model_prediction_features(model)
+    ]
+
+    train_predictions = extract_predictions(
+        model.predict(train_ds), prediction_names
+    )
+    train_errors = calculate_prediction_errors(
+        train_labels, train_predictions, prediction_names
+    )
+
+    for i, target_name in enumerate(prediction_names):
+        (
+            masked_train_labels[target_name],
+            masked_train_predictions[target_name],
+        ) = cb.features.filter_masked(
+            train_labels[target_name], train_predictions[i]
+        )
+        metrics[target_name] = {}
+        metrics[target_name]["train"] = calculate_regression_metrics(
+            masked_train_labels[target_name],
+            masked_train_predictions[target_name],
+        )
+
+    test_predictions = None
+    test_errors = None
+    masked_test_labels = None
+    masked_test_predictions = None
+    if test_ds:
+        masked_test_labels = {}
+        masked_test_predictions = {}
+
+        test_predictions = extract_predictions(
+            model.predict(test_ds), prediction_names
+        )
+        test_errors = calculate_prediction_errors(
+            test_labels, test_predictions, prediction_names
+        )
+        for i, target_name in enumerate(prediction_names):
+            (
+                masked_test_labels[target_name],
+                masked_test_predictions[target_name],
+            ) = cb.features.filter_masked(
+                test_labels[target_name], test_predictions[i]
+            )
+            metrics[target_name]["test"] = calculate_regression_metrics(
+                masked_test_labels[target_name],
+                masked_test_predictions[target_name],
+            )
 
     if plot:
+        cb.plots.write_errors(
+            train_compositions, train_labels, train_predictions
+        )
         if test_ds is not None:
-            cb.plots.plot_results_classification(
-                train_labels,
-                train_predictions,
-                test_labels,
-                test_predictions,
-                model_name=model_name,
-            )
-            cb.plots.plot_results_regression(
-                train_labels,
-                train_predictions,
-                test_labels,
-                test_predictions,
-                train_compositions=train_compositions,
-                test_compositions=test_compositions,
-                train_errorbars=train_errorbars,
-                test_errorbars=test_errorbars,
-                model_name=model_name,
-            )
-        else:
-            cb.plots.plot_results_classification(
-                train_labels, train_predictions, model_name=model_name
-            )
-            cb.plots.plot_results_regression(
-                train_labels,
-                train_predictions,
-                train_compositions=train_compositions,
-                test_compositions=test_compositions,
-                train_errorbars=train_errorbars,
-                model_name=model_name,
+            cb.plots.write_errors(
+                test_compositions, test_labels, test_predictions, suffix="test"
             )
 
+        cb.plots.plot_results_classification(
+            train_labels, train_predictions, test_labels, test_predictions
+        )
+        cb.plots.plot_results_regression(
+            train_labels,
+            train_predictions,
+            train_errors,
+            test_labels,
+            test_predictions,
+            test_errors,
+            metrics=metrics,
+            train_compositions=train_compositions,
+            test_compositions=test_compositions,
+            train_errorbars=train_errorbars,
+            test_errorbars=test_errorbars,
+        )
+
     if test_ds is not None:
-        return train_predictions, test_predictions
+        return (
+            train_predictions,
+            train_errors,
+            test_predictions,
+            test_errors,
+            metrics,
+        )
     else:
-        return train_predictions
+        return train_predictions, train_errors, metrics
 
 
 def get_model_prediction_features(model):
