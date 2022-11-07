@@ -248,7 +248,6 @@ def calculate_features(
                 actual_feature = feature.split("_deviation")[0]
                 if actual_feature not in input_features:
                     input_features.append(actual_feature)
-
             else:
                 input_features.append(feature)
 
@@ -268,7 +267,10 @@ def calculate_features(
             for element in unique_elements:
                 input_features.append(element + "_percentage")
 
-        elif mg.get_property_function(feature) is None:
+        elif (
+            mg.get_property_function(feature) is None
+            and "_percentage" not in feature
+        ):
             input_features.append(feature + "_linearmix")
             input_features.append(feature + "_deviation")
 
