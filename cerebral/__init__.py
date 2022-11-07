@@ -69,16 +69,25 @@ def setup(user_config: dict = {}):
     if not hasattr(conf, "model_name"):
         conf.model_name = "_".join(conf.target_names)
 
-    if conf.get("output_directory", None) is None:
-        conf.output_directory = conf.model_name
-    if not os.path.exists(conf.output_directory):
-        os.makedirs(conf.output_directory)
+    if not hasattr(conf, "plot"):
+        conf.plot = False
 
-    image_directory = conf.output_directory + "/figures"
-    if not os.path.exists(image_directory):
-        os.makedirs(image_directory)
-    image_directory = image_directory + "/"
-    conf.image_directory = image_directory
+    if not hasattr(conf, "save"):
+        conf.save = False
+
+    if conf.save:
+        if not hasattr(conf, "output_directory"):
+            conf.output_directory = conf.model_name
+
+    if hasattr(conf, "output_directory"):
+        if not os.path.exists(conf.output_directory):
+            os.makedirs(conf.output_directory)
+
+        image_directory = conf.output_directory + "/figures"
+        if not os.path.exists(image_directory):
+            os.makedirs(image_directory)
+        image_directory = image_directory + "/"
+        conf.image_directory = image_directory
 
     if not hasattr(conf, "data"):
         conf.data = OmegaConf.create({})

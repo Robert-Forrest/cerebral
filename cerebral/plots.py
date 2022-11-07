@@ -28,10 +28,12 @@ def plot_training(history):
 
     """
 
-    if not os.path.exists(cb.conf.image_directory):
-        os.makedirs(cb.conf.image_directory)
+    image_directory = None
+    if cb.conf.save:
+        if not os.path.exists(cb.conf.image_directory):
+            os.makedirs(cb.conf.image_directory)
 
-    image_directory = cb.conf.image_directory
+        image_directory = cb.conf.image_directory
 
     for metric in history.history:
 
@@ -63,13 +65,19 @@ def plot_training(history):
 
             plt.tight_layout()
 
-            if "_" in metric:
-                feature = metric.split("_")[0]
-                if not os.path.exists(image_directory + feature):
-                    os.makedirs(image_directory + feature)
-                plt.savefig(image_directory + feature + "/" + metric + ".png")
+            if cb.conf.save:
+                if "_" in metric:
+                    feature = metric.split("_")[0]
+                    if not os.path.exists(image_directory + feature):
+                        os.makedirs(image_directory + feature)
+                    plt.savefig(
+                        image_directory + feature + "/" + metric + ".png"
+                    )
+                else:
+                    plt.savefig(image_directory + metric + ".png")
             else:
-                plt.savefig(image_directory + metric + ".png")
+                plt.show()
+
             plt.cla()
             plt.clf()
             plt.close()
@@ -141,9 +149,10 @@ def plot_results_regression(
 
     """
 
-    image_directory = cb.conf.image_directory
-    if not os.path.exists(image_directory):
-        os.makedirs(image_directory)
+    if cb.conf.save:
+        image_directory = cb.conf.image_directory
+        if not os.path.exists(image_directory):
+            os.makedirs(image_directory)
 
     for i, target in enumerate(cb.conf.targets):
         if target["type"] != "numerical":
@@ -380,15 +389,19 @@ def plot_results_regression(
 
         plt.tight_layout()
 
-        if not os.path.exists(image_directory + target_name):
-            os.makedirs(image_directory + target_name)
-        plt.savefig(
-            image_directory
-            + target_name
-            + "/"
-            + target_name
-            + "_TrueVsPredicted.png"
-        )
+        if cb.conf.save:
+            if not os.path.exists(image_directory + target_name):
+                os.makedirs(image_directory + target_name)
+            plt.savefig(
+                image_directory
+                + target_name
+                + "/"
+                + target_name
+                + "_TrueVsPredicted.png"
+            )
+        else:
+            plt.show()
+
         plt.cla()
         plt.clf()
         plt.close()
@@ -411,13 +424,18 @@ def plot_results_regression(
         )
 
         plt.tight_layout()
-        plt.savefig(
-            image_directory
-            + target_name
-            + "/"
-            + target_name
-            + "_PredictionError.png"
-        )
+
+        if cb.conf.save:
+            plt.savefig(
+                image_directory
+                + target_name
+                + "/"
+                + target_name
+                + "_PredictionError.png"
+            )
+        else:
+            plt.show()
+
         plt.cla()
         plt.clf()
         plt.close()
@@ -530,15 +548,19 @@ def plot_results_regression_heatmap(train_labels, train_predictions):
             )
 
             plt.tight_layout()
-            if not os.path.exists(cb.conf.image_directory + feature):
-                os.makedirs(cb.conf.image_directory + feature)
-            plt.savefig(
-                cb.conf.image_directory
-                + feature
-                + "/"
-                + feature
-                + "_TrueVsPredicted_heatmap.png"
-            )
+            if cb.conf.save:
+                if not os.path.exists(cb.conf.image_directory + feature):
+                    os.makedirs(cb.conf.image_directory + feature)
+                plt.savefig(
+                    cb.conf.image_directory
+                    + feature
+                    + "/"
+                    + feature
+                    + "_TrueVsPredicted_heatmap.png"
+                )
+            else:
+                plt.show()
+
             plt.cla()
             plt.clf()
             plt.close()
@@ -561,11 +583,13 @@ def plot_results_classification(
             target_name = target["name"]
             classes = target["classes"]
 
-            image_directory = cb.conf.image_directory
-            if not os.path.exists(image_directory):
-                os.makedirs(image_directory)
-            if not os.path.exists(image_directory + target_name):
-                os.makedirs(image_directory + target_name)
+            image_directory = None
+            if cb.conf.save:
+                image_directory = cb.conf.image_directory
+                if not os.path.exists(image_directory):
+                    os.makedirs(image_directory)
+                if not os.path.exists(image_directory + target_name):
+                    os.makedirs(image_directory + target_name)
 
             if len(train_labels.columns) > 1:
                 (
@@ -761,13 +785,17 @@ def plot_results_classification(
 
                 plt.tight_layout()
 
-                plt.savefig(
-                    image_directory
-                    + target_name
-                    + "/confusion_"
-                    + set_name
-                    + ".png"
-                )
+                if cb.conf.save:
+                    plt.savefig(
+                        image_directory
+                        + target_name
+                        + "/confusion_"
+                        + set_name
+                        + ".png"
+                    )
+                else:
+                    plt.show()
+
                 plt.cla()
                 plt.clf()
                 plt.close()
@@ -820,7 +848,14 @@ def plot_multiclass_roc(true, pred, feature_name, set_name, image_directory):
         )
     ax.legend(loc="best")
     plt.tight_layout()
-    plt.savefig(image_directory + feature_name + "/ROC_" + set_name + ".png")
+
+    if cb.conf.save:
+        plt.savefig(
+            image_directory + feature_name + "/ROC_" + set_name + ".png"
+        )
+    else:
+        plt.show()
+
     plt.cla()
     plt.clf()
     plt.close()
@@ -833,8 +868,10 @@ def plot_distributions(data):
 
     """
 
-    if not os.path.exists(cb.conf.image_directory + "distributions"):
-        os.makedirs(cb.conf.image_directory + "distributions")
+    if cb.conf.save:
+        if not os.path.exists(cb.conf.image_directory + "distributions"):
+            os.makedirs(cb.conf.image_directory + "distributions")
+
     for feature in data.columns:
         if feature == "composition" or feature not in cb.conf.target_names:
             continue
@@ -892,9 +929,14 @@ def plot_distributions(data):
         # plt.gca().xaxis.grid(True)
 
         plt.tight_layout()
-        plt.savefig(
-            cb.conf.image_directory + "distributions/" + feature + ".png"
-        )
+
+        if cb.conf.save:
+            plt.savefig(
+                cb.conf.image_directory + "distributions/" + feature + ".png"
+            )
+        else:
+            plt.show()
+
         plt.cla()
         plt.clf()
         plt.close()
@@ -907,9 +949,17 @@ def plot_distributions(data):
         plt.yscale("log")
 
         plt.tight_layout()
-        plt.savefig(
-            cb.conf.image_directory + "distributions/" + feature + "_all.png"
-        )
+
+        if cb.conf.save:
+            plt.savefig(
+                cb.conf.image_directory
+                + "distributions/"
+                + feature
+                + "_all.png"
+            )
+        else:
+            plt.show()
+
         plt.cla()
         plt.clf()
         plt.close()
@@ -923,8 +973,9 @@ def plot_feature_variation(data, suffix=None):
 
     """
 
-    if not os.path.exists(cb.conf.image_directory):
-        os.makedirs(cb.conf.image_directory)
+    if cb.conf.save:
+        if not os.path.exists(cb.conf.image_directory):
+            os.makedirs(cb.conf.image_directory)
 
     tmpData = data.copy()
     tmpData = tmpData.replace(cb.features.mask_value, np.nan)
@@ -955,10 +1006,17 @@ def plot_feature_variation(data, suffix=None):
     plt.ylim(-1, len(featureNames))
     plt.xlabel("Quartile coefficient of dispersion")
     plt.tight_layout()
-    if suffix is None:
-        plt.savefig(cb.conf.image_directory + "variance.png")
+
+    if cb.conf.save:
+        if suffix is None:
+            plt.savefig(cb.conf.image_directory + "variance.png")
+        else:
+            plt.savefig(
+                cb.conf.image_directory + "variance_" + suffix + ".png"
+            )
     else:
-        plt.savefig(cb.conf.image_directory + "variance_" + suffix + ".png")
+        plt.show()
+
     plt.cla()
     plt.clf()
     plt.close()
@@ -972,8 +1030,9 @@ def plot_correlation(data, suffix=None):
 
     """
 
-    if not os.path.exists(cb.conf.image_directory + "correlations"):
-        os.makedirs(cb.conf.image_directory + "correlations")
+    if cb.conf.save:
+        if not os.path.exists(cb.conf.image_directory + "correlations"):
+            os.makedirs(cb.conf.image_directory + "correlations")
 
     tmpData = data.copy()
     tmpData = tmpData.replace(cb.features.mask_value, np.nan)
@@ -996,15 +1055,22 @@ def plot_correlation(data, suffix=None):
     plt.xlabel("Feature distance")
     plt.ylabel("Features")
     plt.tight_layout()
-    if suffix is not None:
-        plt.savefig(
-            cb.conf.image_directory
-            + "correlations/dendrogram_"
-            + suffix
-            + ".png"
-        )
+
+    if cb.conf.save:
+        if suffix is not None:
+            plt.savefig(
+                cb.conf.image_directory
+                + "correlations/dendrogram_"
+                + suffix
+                + ".png"
+            )
+        else:
+            plt.savefig(
+                cb.conf.image_directory + "correlations/dendrogram.png"
+            )
     else:
-        plt.savefig(cb.conf.image_directory + "correlations/dendrogram.png")
+        plt.show()
+
     plt.cla()
     plt.clf()
     plt.close()
@@ -1033,19 +1099,23 @@ def plot_correlation(data, suffix=None):
     )
 
     plt.tight_layout()
-    if suffix is not None:
-        hmap.figure.savefig(
-            cb.conf.image_directory
-            + "correlations/all_correlation_"
-            + suffix
-            + ".png",
-            format="png",
-        )
+    if cb.conf.save:
+        if suffix is not None:
+            hmap.figure.savefig(
+                cb.conf.image_directory
+                + "correlations/all_correlation_"
+                + suffix
+                + ".png",
+                format="png",
+            )
+        else:
+            hmap.figure.savefig(
+                cb.conf.image_directory + "correlations/all_correlation.png",
+                format="png",
+            )
     else:
-        hmap.figure.savefig(
-            cb.conf.image_directory + "correlations/all_correlation.png",
-            format="png",
-        )
+        plt.show()
+
     plt.cla()
     plt.clf()
     plt.close()
@@ -1102,22 +1172,27 @@ def plot_correlation(data, suffix=None):
         plt.xlabel("Correlation with " + feature)
         plt.xlim((0, 1))
         plt.tight_layout()
-        if suffix is not None:
-            plt.savefig(
-                cb.conf.image_directory
-                + "correlations/"
-                + feature
-                + "_correlation_"
-                + suffix
-                + ".png"
-            )
+
+        if cb.conf.save:
+            if suffix is not None:
+                plt.savefig(
+                    cb.conf.image_directory
+                    + "correlations/"
+                    + feature
+                    + "_correlation_"
+                    + suffix
+                    + ".png"
+                )
+            else:
+                plt.savefig(
+                    cb.conf.image_directory
+                    + "correlations/"
+                    + feature
+                    + "_correlation.png"
+                )
         else:
-            plt.savefig(
-                cb.conf.image_directory
-                + "correlations/"
-                + feature
-                + "_correlation.png"
-            )
+            plt.show()
+
         plt.cla()
         plt.clf()
         plt.close()
@@ -1130,8 +1205,9 @@ def plot_feature_permutation(data):
 
     """
 
-    if not os.path.exists(cb.conf.image_directory + "permutation"):
-        os.makedirs(cb.conf.image_directory + "permutation")
+    if cb.conf.save:
+        if not os.path.exists(cb.conf.image_directory + "permutation"):
+            os.makedirs(cb.conf.image_directory + "permutation")
 
     for target in cb.conf.targets:
         tmp_data = []
@@ -1173,12 +1249,16 @@ def plot_feature_permutation(data):
         plt.ylabel("Permuted Feature")
 
         plt.tight_layout()
-        plt.savefig(
-            cb.conf.image_directory
-            + "/permutation/"
-            + target.name
-            + "_permutation.png"
-        )
+        if cb.conf.save:
+            plt.savefig(
+                cb.conf.image_directory
+                + "/permutation/"
+                + target.name
+                + "_permutation.png"
+            )
+        else:
+            plt.show()
+
         plt.clf()
         plt.cla()
         plt.close()
@@ -1206,14 +1286,19 @@ def plot_feature_permutation(data):
         plt.ylabel("Permuted Feature")
 
         plt.tight_layout()
-        plt.savefig(
-            cb.conf.image_directory
-            + "/permutation/"
-            + target.name
-            + "_permutation_top"
-            + str(topN)
-            + ".png"
-        )
+
+        if cb.conf.save:
+            plt.savefig(
+                cb.conf.image_directory
+                + "/permutation/"
+                + target.name
+                + "_permutation_top"
+                + str(topN)
+                + ".png"
+            )
+        else:
+            plt.show()
+
         plt.clf()
         plt.cla()
         plt.close()

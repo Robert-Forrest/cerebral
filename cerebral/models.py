@@ -300,9 +300,6 @@ def build_model(
         optimizer=optimiser,
     )
 
-    tf.keras.utils.plot_model(
-        model, to_file=cb.conf.image_directory + "model.png", rankdir="LR"
-    )
     return model
 
 
@@ -340,7 +337,7 @@ def load(path):
     )
 
 
-def train_model(data, max_epochs=1000, plot=False):
+def train_model(data, max_epochs=1000):
     train, test = cb.features.train_test_split(data)
 
     train_compositions = train.pop("composition")
@@ -372,15 +369,12 @@ def train_model(data, max_epochs=1000, plot=False):
         train_features,
         test_ds,
         max_epochs,
-        plot,
     )
 
     return model, history, train_data, test_data
 
 
-def compile_and_fit(
-    train_ds, train_features, test_ds=None, max_epochs=1000, plot=False
-):
+def compile_and_fit(train_ds, train_features, test_ds=None, max_epochs=1000):
     """Compile a model, and perform training.
 
     :group: models
@@ -408,8 +402,19 @@ def compile_and_fit(
         max_epochs,
     )
 
-    if plot:
+    if cb.conf.plot:
+        if cb.conf.save:
+            tf.keras.utils.plot_model(
+                model,
+                to_file=cb.conf.image_directory + "model.png",
+                rankdir="LR",
+            )
+        else:
+            tf.keras.utils.plot_model(model, rankdir="LR")
+
         cb.plots.plot_training(history)
+
+    if cb.conf.save:
         save(model, cb.conf.output_directory + "/model")
 
     return model, history
@@ -531,7 +536,6 @@ def evaluate_model(
     train_labels,
     test_ds=None,
     test_labels=None,
-    plot=False,
     train_compositions=None,
     test_compositions=None,
 ):
@@ -599,7 +603,7 @@ def evaluate_model(
                 masked_test_predictions[target_name],
             )
 
-    if plot:
+    if cb.conf.save:
         cb.plots.write_errors(
             train_compositions, train_labels, train_predictions
         )
@@ -607,6 +611,8 @@ def evaluate_model(
             cb.plots.write_errors(
                 test_compositions, test_labels, test_predictions, suffix="test"
             )
+
+    if cb.conf.plot:
 
         cb.plots.plot_results_classification(
             train_labels, train_predictions, test_labels, test_predictions

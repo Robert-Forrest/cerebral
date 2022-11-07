@@ -39,7 +39,6 @@ def setup_units():
 
 
 def load_data(
-    plot: bool = False,
     drop_correlated_features: bool = True,
     model=None,
     postprocess: Callable = None,
@@ -52,8 +51,6 @@ def load_data(
     Parameters
     ----------
 
-    plot
-        If True, plot analytical graphs of the raw data.
     drop_correlated_features
         If True, cull pairs of correlated features.
     model
@@ -95,7 +92,6 @@ def load_data(
 
     data = cb.features.calculate_features(
         data,
-        plot=plot,
         drop_correlated_features=drop_correlated_features,
         model=model,
     )
@@ -184,7 +180,6 @@ def prettyName(feature_name: str) -> str:
 def calculate_features(
     data: pd.DataFrame,
     drop_correlated_features: bool = True,
-    plot: bool = False,
     required_features: List[str] = [],
     merge_duplicates: bool = True,
     model: Optional = None,
@@ -200,8 +195,6 @@ def calculate_features(
         The data set of alloy compositions.
     drop_correlated_features
         If True, pairs of correlated feautres will be culled.
-    plot
-        If True, graphs of the data set population will be created.
     required_features
         List of required feature names to calculate.
     merge_duplicates
@@ -338,7 +331,7 @@ def calculate_features(
     if merge_duplicates:
         data = merge_duplicate_compositions(data)
 
-    if plot:
+    if cb.conf.plot:
         cb.plots.plot_correlation(data)
         cb.plots.plot_feature_variation(data)
 
