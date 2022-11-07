@@ -537,7 +537,7 @@ def calculate_prediction_errors(
 
 
 def calculate_regression_metrics(
-    labels: list[Number], predictions: List[Number]
+    labels: List[Number], predictions: List[Number]
 ) -> dict:
     """Calculate regression metrics to evaluate model performance.
 
