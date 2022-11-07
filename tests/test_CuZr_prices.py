@@ -9,7 +9,7 @@ def test_CuZr_price_model():
                 {"name": "price"},
             ],
             "input_features": ["percentages"],
-            "data": {"files": ["CuZr_prices.csv"]},
+            "data": {"files": ["tests/CuZr_prices.csv"]},
         }
     )
 
