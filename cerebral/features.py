@@ -263,6 +263,13 @@ def calculate_features(
         elif "_deviation" in feature:
             input_features.append(feature)
             units[feature] = "%"
+        elif feature == "percentages":
+            unique_elements = mg.analyse.find_unique_elements(
+                data["composition"]
+            )
+            for element in unique_elements:
+                input_features.append(element + "_percentage")
+
         elif mg.get_property_function(feature) is None:
             input_features.append(feature + "_linearmix")
             input_features.append(feature + "_deviation")
@@ -296,9 +303,20 @@ def calculate_features(
 
     input_feature_values = {}
     for feature in input_features:
-        input_feature_values[feature] = mg.calculate(
-            data["composition"], feature
-        )
+        if "_percentage" not in feature:
+            input_feature_values[feature] = mg.calculate(
+                data["composition"], feature
+            )
+        else:
+            input_feature_values[feature] = []
+            element = feature.split("_percentage")[0]
+            for i, row in data.iterrows():
+                if element in row["composition"].composition:
+                    input_feature_values[feature].append(
+                        row["composition"].composition[element]
+                    )
+                else:
+                    input_feature_values[feature].append(0)
 
     data = pd.concat(
         [data, pd.DataFrame.from_dict(input_feature_values)],
