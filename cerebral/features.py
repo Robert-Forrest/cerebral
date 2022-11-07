@@ -42,7 +42,7 @@ def load_data(
     plot: bool = False,
     drop_correlated_features: bool = True,
     model=None,
-    postprocess: bool = None,
+    postprocess: Callable = None,
     save_csv: bool = False,
 ) -> pd.DataFrame:
     """Load and process data for use by cerebral.
@@ -70,17 +70,26 @@ def load_data(
 
     data = []
     for data_file in data_files:
+        raw_data = None
         if ".csv" in data_file:
-            rawData = pd.read_csv(data_directory + data_file)
+            raw_data = pd.read_csv(data_directory + data_file)
         elif ".xls" in data_file:
-            rawData = pd.read_excel(data_directory + data_file)
+            raw_data = pd.read_excel(data_directory + data_file)
 
-        rawData = rawData.loc[:, ~rawData.columns.str.contains("^Unnamed")]
+        if raw_data is not None:
 
-        if "composition" not in rawData:
-            rawData = extract_compositions(rawData)
+            raw_data = raw_data.loc[
+                :, ~raw_data.columns.str.contains("^Unnamed")
+            ]
 
-        data.append(rawData)
+            if "composition" not in raw_data:
+                raw_data = extract_compositions(raw_data)
+
+            data.append(raw_data)
+        else:
+            raise NotImplementedError(
+                data_file + " filetype not yet implemented."
+            )
 
     data = pd.concat(data, ignore_index=True)
 
