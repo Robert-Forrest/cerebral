@@ -2,22 +2,16 @@
 
 import datetime
 import os
+from numbers import Number
+from typing import List
 
+import pandas as pd
 import numpy as np
 import tensorflow as tf
 
 import cerebral as cb
 
 tf.keras.backend.set_floatx("float64")
-physical_devices = tf.config.list_physical_devices("GPU")
-try:
-    tf.config.experimental.set_memory_growth(physical_devices[0], True)
-except:
-    print("Could not set memory growth")
-
-os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
-os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
-tf.get_logger().setLevel("INFO")
 
 
 def setup_losses_and_metrics():
