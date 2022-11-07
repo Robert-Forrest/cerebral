@@ -1,6 +1,6 @@
 """Module providing hyperparameter tuning functionality."""
 
-import kerastuner as kt
+import keras_tuner as kt
 import tensorflow as tf
 
 import cerebral as cb
