@@ -127,10 +127,16 @@ price.
 ```
 
 Futher, the model can be used to generate predictions for arbitrary alloys, as
-long as the required input features are supplied.
+long as the required input features are supplied. Here, we see that the simple
+example model predicts price value for pure copper which is in the vicinity of
+the value originally calculated by linear mixture: 
 
 ```python
-predictions = cb.models.predict(model, "Cu99.99999Zr0.00001")
+cb.models.predict(model, "Cu100")["price"]
+>>> {'price': array([6.60157898])} 
+
+mg.calculate("Cu100", "price")
+>>> 6.0
 ```
 
 ## Documentation
