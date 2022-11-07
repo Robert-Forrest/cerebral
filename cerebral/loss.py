@@ -61,6 +61,7 @@ def masked_Huber(y_true, y_pred):
 
     :group: loss
     """
+
     mask = K.not_equal(y_true, cb.features.mask_value)
 
     error = tf.where(mask, tf.abs(tf.subtract(y_true, y_pred)), 0)
