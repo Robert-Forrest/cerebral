@@ -148,6 +148,7 @@ def kfolds(originalData: pd.DataFrame, save: bool = False, plot: bool = False):
             originalData, cb.conf.targets, train=train_tmp, test=test_tmp
         )
 
+        cb.conf.model_name = foldIndex
         model = cb.models.train_model(
             train_features,
             train_labels,
@@ -157,7 +158,6 @@ def kfolds(originalData: pd.DataFrame, save: bool = False, plot: bool = False):
             sampleWeight_test=sampleWeightTest,
             plot=plot,
             maxEpochs=cb.conf.train.get("max_epochs", 100),
-            model_name=foldIndex,
         )
         if save and not plot:
             cb.models.save(
@@ -171,7 +171,6 @@ def kfolds(originalData: pd.DataFrame, save: bool = False, plot: bool = False):
             test_ds,
             test_labels,
             plot=plot,
-            model_name=foldIndex,
         )
 
         fold_test_labels.append(test_labels)

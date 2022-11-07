@@ -52,13 +52,25 @@ def setup(user_config: dict = {}):
 
     conf = OmegaConf.create(user_config)
 
-    if not os.path.exists("output"):
-        os.makedirs("output")
+    if "targets" in conf:
+        conf.target_names = [t.name for t in conf.targets]
 
-    model_name = conf.get("model_name", "model")
+        for i in range(len(conf.targets)):
+            if "type" not in conf.targets[i]:
+                conf.targets[i]["type"] = "numerical"
+            if "weight" not in conf.targets[i]:
+                conf.targets[i].weight = 1.0
+            if "loss" not in conf.targets[i]:
+                conf.targets[i].loss = "Huber"
+
+    else:
+        raise Exception("No targets set!")
+
+    if not hasattr(conf, "model_name"):
+        conf.model_name = "_".join(conf.target_names)
+
     if conf.get("output_directory", None) is None:
-        conf.output_directory = "output/" + model_name
-
+        conf.output_directory = conf.model_name
     if not os.path.exists(conf.output_directory):
         os.makedirs(conf.output_directory)
 
@@ -78,20 +90,6 @@ def setup(user_config: dict = {}):
 
     if "files" not in conf.data:
         raise Exception("No data files set!")
-
-    if "targets" in conf:
-        conf.target_names = [t.name for t in conf.targets]
-
-        for i in range(len(conf.targets)):
-            if "type" not in conf.targets[i]:
-                conf.targets[i]["type"] = "numerical"
-            if "weight" not in conf.targets[i]:
-                conf.targets[i].weight = 1.0
-            if "loss" not in conf.targets[i]:
-                conf.targets[i].loss = "Huber"
-
-    else:
-        raise Exception("No targets set!")
 
     if "input_features" not in conf:
         conf.input_features = mg.get_all_properties()
