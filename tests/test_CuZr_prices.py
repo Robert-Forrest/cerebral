@@ -1,3 +1,4 @@
+import metallurgy as mg
 import cerebral as cb
 
 
@@ -10,13 +11,14 @@ def test_CuZr_price_model():
             ],
             "input_features": ["percentages"],
             "data": {"files": ["tests/CuZr_prices.csv"]},
+            "plot": False,
         }
     )
 
     data = cb.features.load_data()
 
     model, history, train_data, test_data = cb.models.train_model(
-        data, max_epochs=200
+        data, max_epochs=1000
     )
 
     (
@@ -36,3 +38,8 @@ def test_CuZr_price_model():
     )
 
     assert metrics["price"]["train"]["R_sq"] > 0.5
+
+    alloy = "Cu100"
+    prediction = cb.models.predict(model, alloy)["price"][0]
+
+    assert abs(prediction - mg.calculate("Cu100", "price")) < 1.0
