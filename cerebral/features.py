@@ -1,12 +1,13 @@
 """Module providing feature processing functionality."""
 
 from collections.abc import Iterable
-from typing import List, Optional, Tuple, Union
+from typing import List, Optional, Tuple, Union, Callable
 
 import metallurgy as mg
 import numpy as np
 import pandas as pd
 import tensorflow as tf
+from sklearn import model_selection
 
 import cerebral as cb
 
@@ -570,6 +571,10 @@ def train_test_split(
     https://doi.org/10.1016/j.actamat.2018.08.002, and Section 4.1 of
     https://pubs.rsc.org/en/content/articlelanding/2022/dd/d2dd00026a.
 
+    If there is a composition type which dominates the dataset (over 60% of the
+    compositions), standard random splitting will be applied to avoid very small
+    training or test sets.
+
     :group: utils
 
     Parameters
@@ -586,8 +591,7 @@ def train_test_split(
 
     unique_composition_spaces = {}
     for _, row in data.iterrows():
-        composition = mg.alloy.parse_composition(row["composition"])
-        sorted_composition = sorted(list(composition.keys()))
+        sorted_composition = sorted(row["composition"].elements)
         composition_space = "".join(sorted_composition)
 
         if composition_space not in unique_composition_spaces:
@@ -595,26 +599,37 @@ def train_test_split(
 
         unique_composition_spaces[composition_space].append(row)
 
-    numTraining = np.ceil(
-        int(train_percentage * len(unique_composition_spaces))
-    )
+    proportions = {}
+    for composition_space in unique_composition_spaces:
+        proportions[composition_space] = len(
+            unique_composition_spaces[composition_space]
+        ) / len(data)
 
-    trainingSet = []
-    testSet = []
+    if not np.any([proportions[p] > 0.6 for p in proportions]):
+        numTraining = np.ceil(
+            int(train_percentage * len(unique_composition_spaces))
+        )
 
-    shuffled_unique_compositions = list(unique_composition_spaces.keys())
-    np.random.shuffle(shuffled_unique_compositions)
+        training_set = []
+        test_set = []
 
-    for i in range(len(shuffled_unique_compositions)):
-        compositions = unique_composition_spaces[
-            shuffled_unique_compositions[i]
-        ]
-        if i < numTraining:
-            trainingSet.extend(compositions)
-        else:
-            testSet.extend(compositions)
+        shuffled_unique_compositions = list(unique_composition_spaces.keys())
+        np.random.shuffle(shuffled_unique_compositions)
 
-    return pd.DataFrame(trainingSet), pd.DataFrame(testSet)
+        for i in range(len(shuffled_unique_compositions)):
+            compositions = unique_composition_spaces[
+                shuffled_unique_compositions[i]
+            ]
+            if i < numTraining:
+                training_set.extend(compositions)
+            else:
+                test_set.extend(compositions)
+
+    else:
+        training_set, test_set = model_selection.train_test_split(
+            data, train_size=train_percentage
+        )
+    return pd.DataFrame(training_set), pd.DataFrame(test_set)
 
 
 def df_to_dataset(
