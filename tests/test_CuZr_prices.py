@@ -42,4 +42,4 @@ def test_CuZr_price_model():
     alloy = "Cu100"
     prediction = cb.models.predict(model, alloy)["price"][0]
 
-    assert abs(prediction - mg.calculate("Cu100", "price")) < 1.0
+    assert abs(prediction - mg.calculate(alloy, "price")) < 1.0
