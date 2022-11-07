@@ -342,6 +342,23 @@ def calculate_features(
 def drop_unwanted_inputs(
     data: pd.DataFrame, input_features: List[str], target_names: List[str]
 ) -> pd.DataFrame:
+    """Remove columns from the input DataFrame if they are not specified as an
+    input feature or a target feature.
+
+    :group: utils
+
+    Parameters
+    ----------
+
+    data
+        Data to have unwanted features removed from.
+    input_features
+        List of names of input features.
+    target_names
+        List of names of target features.
+
+    """
+
     to_drop = []
     for column in data:
         if column == "composition":
@@ -353,6 +370,20 @@ def drop_unwanted_inputs(
 
 
 def drop_invalid_compositions(data: pd.DataFrame) -> pd.DataFrame:
+    """Remove invalid alloy compositions from the input DataFrame. Alloy
+    compositions are be invalid if they have percentages which do not sum to
+    100%.
+
+    :group: utils
+
+    Parameters
+    ----------
+
+    data
+        Data to have invalid compositions removed from.
+
+    """
+
     to_drop = []
     for i, row in data.iterrows():
         if abs(1 - row["composition"].total_percentage) > 0.01:
@@ -362,6 +393,22 @@ def drop_invalid_compositions(data: pd.DataFrame) -> pd.DataFrame:
 
 
 def _drop_correlated_features(data, target_names, required_features):
+    """Remove highly correlated features from the training data.
+
+    :group: utils
+
+    Parameters
+    ----------
+
+    data
+        Data to have invalid compositions removed from.
+    target_names
+        List of names of target features.
+    required_features
+        List of names of input features which cannot be removed.
+
+    """
+
     correlation = np.array(data.corr())
 
     correlated_dropped_features = []

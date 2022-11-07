@@ -485,7 +485,27 @@ def extract_predictions(predictions, prediction_names):
     return predictions
 
 
-def calculate_prediction_errors(labels, predictions, prediction_names):
+def calculate_prediction_errors(
+    labels: pd.DataFrame,
+    predictions: List[List[Number]],
+    prediction_names: List[str],
+) -> List[Number]:
+    """Calculate the prediction errors for each labelled item of training data.
+
+    :group: models
+
+    Parameters
+    ----------
+
+    labels
+        True numerical values.
+    predictions
+        Predicted numerical values.
+    prediction_names
+        List of names of each predicted feature.
+
+    """
+
     errors = []
     for i in range(len(predictions)):
         errors.append([])
@@ -516,7 +536,23 @@ def calculate_prediction_errors(labels, predictions, prediction_names):
     return errors
 
 
-def calculate_regression_metrics(labels, predictions):
+def calculate_regression_metrics(
+    labels: list[Number], predictions: List[Number]
+) -> dict:
+    """Calculate regression metrics to evaluate model performance.
+
+    :group: models
+
+    Parameters
+    ----------
+
+    labels
+        True numerical values.
+    predictions
+        Predicted numerical values.
+
+    """
+
     metrics = {}
     metrics["R_sq"] = cb.metrics.calc_R_sq(labels, predictions)
     metrics["RMSE"] = cb.metrics.calc_RMSE(labels, predictions)
