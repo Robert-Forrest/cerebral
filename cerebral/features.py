@@ -205,16 +205,11 @@ def calculate_features(
     """
 
     if not isinstance(data, pd.DataFrame):
-        if not isinstance(data, Iterable) and not isinstance(
-            data, (str, dict)
-        ):
+        if not isinstance(data, Iterable) or isinstance(data, (str, dict)):
             data = [data]
 
         data = pd.DataFrame(
-            [
-                mg.Alloy(composition, rescale=False)
-                for _, composition in enumerate(data)
-            ],
+            [mg.Alloy(composition, rescale=False) for composition in data],
             columns=["composition"],
         )
     else:
