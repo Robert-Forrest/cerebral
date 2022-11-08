@@ -536,7 +536,7 @@ def merge_duplicate_compositions(data: pd.DataFrame) -> pd.DataFrame:
                 duplicate_compositions[alloy] = [
                     data.iloc[seen_compositions.index(composition_str)]
                 ]
-            duplicate_compositions[composition_str].append(row)
+            duplicate_compositions[alloy].append(row)
             to_drop.append(i)
         seen_compositions.append(composition_str)
 
@@ -551,7 +551,6 @@ def merge_duplicate_compositions(data: pd.DataFrame) -> pd.DataFrame:
 
     deduplicated_rows = []
     for composition in duplicate_compositions:
-
         averaged_features = {}
         num_contributions = {}
         for feature in duplicate_compositions[composition][0].keys():
