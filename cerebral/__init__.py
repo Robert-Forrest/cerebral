@@ -113,5 +113,7 @@ def setup(user_config: dict = {}):
         conf.train = OmegaConf.create({})
     if "max_epochs" not in conf.train:
         conf.train.max_epochs = 100
+    if "train_percentage" not in conf.train:
+        conf.train.train_percentage = 1.0
 
     features.setup_units()

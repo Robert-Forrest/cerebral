@@ -332,40 +332,70 @@ def load(path):
 
 
 def train_model(data, max_epochs=1000):
-    train, test = cb.features.train_test_split(data)
 
-    train_compositions = train.pop("composition")
-    test_compositions = test.pop("composition")
+    max_epochs = cb.conf.train.get("max_epochs", max_epochs)
 
-    (
-        train_ds,
-        test_ds,
-        train_features,
-        test_features,
-        train_labels,
-        test_labels,
-    ) = cb.features.create_datasets(data, cb.conf.targets, train, test)
+    if cb.conf.train.train_percentage < 1.0:
+        train, test = cb.features.train_test_split(
+            data, train_percentage=cb.conf.train.train_percentage
+        )
 
-    train_data = {
-        "compositions": train_compositions,
-        "dataset": train_ds,
-        "labels": train_labels,
-    }
+        train_compositions = train.pop("composition")
+        test_compositions = test.pop("composition")
 
-    test_data = {
-        "compositions": test_compositions,
-        "dataset": test_ds,
-        "labels": test_labels,
-    }
+        (
+            train_ds,
+            test_ds,
+            train_features,
+            test_features,
+            train_labels,
+            test_labels,
+        ) = cb.features.create_datasets(data, cb.conf.targets, train, test)
 
-    model, history = compile_and_fit(
-        train_ds,
-        train_features,
-        test_ds,
-        max_epochs,
-    )
+        train_data = {
+            "compositions": train_compositions,
+            "dataset": train_ds,
+            "labels": train_labels,
+        }
 
-    return model, history, train_data, test_data
+        test_data = {
+            "compositions": test_compositions,
+            "dataset": test_ds,
+            "labels": test_labels,
+        }
+
+        model, history = compile_and_fit(
+            train_ds,
+            train_features,
+            test_ds=test_ds,
+            max_epochs=max_epochs,
+        )
+
+        return model, history, train_data, test_data
+
+    else:
+        train = data
+        train_compositions = train.pop("composition")
+
+        (
+            train_ds,
+            train_features,
+            train_labels,
+        ) = cb.features.create_datasets(data, cb.conf.targets, train)
+
+        train_data = {
+            "compositions": train_compositions,
+            "dataset": train_ds,
+            "labels": train_labels,
+        }
+
+        model, history = compile_and_fit(
+            train_ds,
+            train_features,
+            max_epochs=max_epochs,
+        )
+
+        return model, history, train_data
 
 
 def compile_and_fit(train_ds, train_features, test_ds=None, max_epochs=1000):
@@ -389,12 +419,19 @@ def compile_and_fit(train_ds, train_features, test_ds=None, max_epochs=1000):
         ensemble_size=1,
     )
 
-    model, history = fit(
-        model,
-        train_ds,
-        test_ds,
-        max_epochs,
-    )
+    if test_ds is None:
+        model, history = fit(
+            model,
+            train_ds,
+            max_epochs=max_epochs,
+        )
+    else:
+        model, history = fit(
+            model,
+            train_ds,
+            test_ds=test_ds,
+            max_epochs=max_epochs,
+        )
 
     if cb.conf.plot:
         if cb.conf.save:
@@ -417,7 +454,7 @@ def compile_and_fit(train_ds, train_features, test_ds=None, max_epochs=1000):
 def fit(
     model,
     train_ds,
-    test_ds,
+    test_ds=None,
     max_epochs=1000,
 ):
     """Perform training of a model to data.
