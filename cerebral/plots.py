@@ -978,10 +978,10 @@ def plot_feature_variation(data, suffix=None):
             os.makedirs(cb.conf.image_directory)
 
     tmpData = data.copy()
-    tmpData = tmpData.replace(cb.features.mask_value, np.nan)
-
     if "composition" in tmpData.columns:
         tmpData = tmpData.drop("composition", axis="columns")
+
+    tmpData = tmpData.replace(cb.features.mask_value, np.nan)
 
     featureNames = []
     coefficients = []
@@ -1035,10 +1035,11 @@ def plot_correlation(data, suffix=None):
             os.makedirs(cb.conf.image_directory + "correlations")
 
     tmpData = data.copy()
-    tmpData = tmpData.replace(cb.features.mask_value, np.nan)
 
     if "composition" in tmpData.columns:
         tmpData = tmpData.drop("composition", axis="columns")
+
+    tmpData = tmpData.replace(cb.features.mask_value, np.nan)
 
     correlation = tmpData.corr()
     correlation = np.array(correlation.replace(np.nan, 0))
