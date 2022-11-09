@@ -20,57 +20,69 @@ def ensure_default_values_glass(data: pd.DataFrame) -> pd.DataFrame:
 
     """
 
+    target_names = [t["name"] for t in cb.conf.targets]
+
     for i, row in data.iterrows():
 
-        try:
-            _ = data.at[i, "Dmax"]
-            hasDmax = True
-        except BaseException:
-            hasDmax = False
+        if "Dmax" in target_names or "Dmax" in cb.conf.input_features:
+            try:
+                _ = data.at[i, "Dmax"]
+                hasDmax = True
+            except BaseException:
+                hasDmax = False
 
-        if hasDmax:
-            if not np.isnan(data.at[i, "Dmax"]):
-                if row["Dmax"] == 0:
-                    data.at[i, "GFA"] = 0
-                elif row["Dmax"] <= 0.15:
-                    data.at[i, "GFA"] = 1
+            if hasDmax:
+                if not np.isnan(data.at[i, "Dmax"]) and (
+                    "GFA" in target_names or "GFA" in cb.conf.input_features
+                ):
+                    if row["Dmax"] == 0:
+                        data.at[i, "GFA"] = 0
+                    elif row["Dmax"] <= 0.15:
+                        data.at[i, "GFA"] = 1
+                    else:
+                        data.at[i, "GFA"] = 2
                 else:
-                    data.at[i, "GFA"] = 2
+                    data.at[i, "Dmax"] = cb.features.mask_value
             else:
                 data.at[i, "Dmax"] = cb.features.mask_value
-        else:
-            data.at[i, "Dmax"] = cb.features.mask_value
 
-        try:
-            _ = data.at[i, "GFA"]
-            hasGFA = True
-        except BaseException:
-            hasGFA = False
+        if "GFA" in target_names or "GFA" in cb.conf.input_features:
+            try:
+                _ = data.at[i, "GFA"]
+                hasGFA = True
+            except BaseException:
+                hasGFA = False
 
-        if hasGFA:
-            if not np.isnan(data.at[i, "GFA"]):
-                if int(data.at[i, "GFA"]) == 0:
-                    data.at[i, "Dmax"] = 0
-                elif int(data.at[i, "GFA"]) == 1:
-                    data.at[i, "Dmax"] = 0.15
-                elif int(data.at[i, "GFA"]) == 2:
-                    if "Dmax" in row:
-                        if (
-                            np.isnan(data.at[i, "Dmax"])
-                            or data.at[i, "Dmax"] == 0
-                            or data.at[i, "Dmax"] is None
-                        ):
+            if hasGFA:
+                if not np.isnan(data.at[i, "GFA"]):
+                    if int(data.at[i, "GFA"]) == 0:
+                        data.at[i, "Dmax"] = 0
+                    elif int(data.at[i, "GFA"]) == 1:
+                        data.at[i, "Dmax"] = 0.15
+                    elif int(data.at[i, "GFA"]) == 2:
+                        if "Dmax" in row:
+                            if (
+                                np.isnan(data.at[i, "Dmax"])
+                                or data.at[i, "Dmax"] == 0
+                                or data.at[i, "Dmax"] is None
+                            ):
+                                data.at[i, "Dmax"] = cb.features.mask_value
+                        else:
                             data.at[i, "Dmax"] = cb.features.mask_value
                     else:
                         data.at[i, "Dmax"] = cb.features.mask_value
                 else:
-                    data.at[i, "Dmax"] = cb.features.mask_value
+                    data.at[i, "GFA"] = cb.features.mask_value
             else:
                 data.at[i, "GFA"] = cb.features.mask_value
-        else:
-            data.at[i, "GFA"] = cb.features.mask_value
 
-        if "Tx" in row and "Tg" in row:
+        if (
+            "Tx" in row
+            and "Tg" in row
+            and (
+                "deltaT" in target_names or "deltaT" in cb.conf.input_features
+            )
+        ):
             if (
                 not np.isnan(row["Tx"])
                 and not np.isnan(row["Tg"])
