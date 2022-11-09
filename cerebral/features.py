@@ -265,7 +265,8 @@ def calculate_features(
                 data["composition"]
             )
             for element in unique_elements:
-                input_features.append(element + "_percentage")
+                if element + "_percentage" not in input_features:
+                    input_features.append(element + "_percentage")
 
         elif (
             mg.get_property_function(feature) is None
@@ -488,6 +489,7 @@ def drop_static_features(
             feature == "composition"
             or feature in target_names
             or feature in required_features
+            or "_percentage" in feature
         ):
             continue
 
