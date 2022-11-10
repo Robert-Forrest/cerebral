@@ -320,6 +320,8 @@ def plot_results_regression(
             + ")"
         )
 
+        adjust_text_avoid_objects = []
+
         if metrics is not None:
             descriptionStr = (
                 r"$R^2$"
@@ -355,14 +357,17 @@ def plot_results_regression(
                     + ", Test: "
                     + str(round(metrics[target_name]["test"]["MAE"], 3))
                 )
+                legend = plt.legend(loc="lower right")
+                adjust_text_avoid_objects.append(legend)
+
             ob = mpl.offsetbox.AnchoredText(descriptionStr, loc="upper left")
             ob.patch.set_boxstyle("round,pad=0.,rounding_size=0.2")
             ax.add_artist(ob)
+            adjust_text_avoid_objects.append(ob)
 
-        legend = plt.legend(loc="lower right")
         ax.set_aspect("equal", "box")
 
-        X = list(masked_train_labels)
+        X = list(masked_train_truth)
         if test_labels is not None:
             X.extend(masked_test_labels)
         Y = list(masked_train_predictions)
@@ -373,7 +378,7 @@ def plot_results_regression(
             annotations,
             X,
             Y,
-            add_objects=[legend, ob],
+            add_objects=adjust_text_avoid_objects,
             arrowprops=dict(
                 arrowstyle="-|>",
                 color="k",
@@ -386,7 +391,7 @@ def plot_results_regression(
             expand_text=(1.05, 2.5),
             expand_points=(1.05, 1.8),
         )
-        # force_text=0.005, force_points=0.005) masked_train_labels,
+        # force_text=0.005, force_points=0.005) masked_train_truth,
         # masked_train_predictions,
 
         plt.tight_layout()
