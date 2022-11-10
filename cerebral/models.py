@@ -51,6 +51,7 @@ def setup_losses_and_metrics():
                 cb.metrics.f1,
                 cb.metrics.informedness,
                 cb.metrics.markedness,
+                cb.metrics.matthewsCorrelation,
             ]
             losses[
                 feature.name
