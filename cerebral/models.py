@@ -440,7 +440,7 @@ def fit(
     :group: models
     """
 
-    patience = max(max_epochs // 4, 1)
+    patience = min(max(max_epochs // 4, 1), 100)
     min_delta = 0.001
 
     reduce_lr_patience = patience // 3
