@@ -70,7 +70,11 @@ def setup(user_config: dict = {}):
         conf.model_name = "_".join(conf.target_names)
 
     if not hasattr(conf, "plot"):
-        conf.plot = False
+        conf.plot = OmegaConf.create({})
+    if not hasattr(conf.plot, "model"):
+        conf.plot.model = True
+    if not hasattr(conf.plot, "features"):
+        conf.plot.model = False
 
     if not hasattr(conf, "save"):
         conf.save = False
@@ -80,8 +84,14 @@ def setup(user_config: dict = {}):
             conf.output_directory = conf.model_name
 
     if hasattr(conf, "output_directory"):
-        if not os.path.exists(conf.output_directory):
-            os.makedirs(conf.output_directory)
+
+        if os.path.exists(conf.output_directory):
+            raise FileExistsError(
+                "Output directory: "
+                + conf.output_directory
+                + " already exists!"
+            )
+        os.makedirs(conf.output_directory)
 
         image_directory = conf.output_directory + "/figures"
         if not os.path.exists(image_directory):

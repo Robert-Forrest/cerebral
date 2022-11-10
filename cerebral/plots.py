@@ -91,7 +91,12 @@ def write_errors(compositions, labels, predictions, suffix=None):
         target_name = target["name"]
 
         results_file_path = (
-            cb.conf.output_directory + "/" + target_name + "_error"
+            cb.conf.output_directory
+            + "/"
+            + cb.conf.model_name
+            + "_"
+            + target_name
+            + "_error"
         )
         if suffix is not None:
             results_file_path += "_" + suffix

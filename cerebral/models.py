@@ -433,11 +433,11 @@ def compile_and_fit(train_ds, train_features, test_ds=None, max_epochs=1000):
             max_epochs=max_epochs,
         )
 
-    if cb.conf.plot:
+    if cb.conf.plot.model:
         if cb.conf.save:
             tf.keras.utils.plot_model(
                 model,
-                to_file=cb.conf.image_directory + "model.png",
+                to_file=cb.conf.image_directory + cb.conf.model_name + ".png",
                 rankdir="LR",
             )
         else:
@@ -446,7 +446,7 @@ def compile_and_fit(train_ds, train_features, test_ds=None, max_epochs=1000):
         cb.plots.plot_training(history)
 
     if cb.conf.save:
-        save(model, cb.conf.output_directory + "/model")
+        save(model, cb.conf.output_directory + "/" + cb.conf.model_name)
 
     return model, history
 
