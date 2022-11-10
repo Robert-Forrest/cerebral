@@ -32,15 +32,18 @@ def ensure_default_values_glass(data: pd.DataFrame) -> pd.DataFrame:
                 hasDmax = False
 
             if hasDmax:
-                if not np.isnan(data.at[i, "Dmax"]) and (
-                    "GFA" in target_names or "GFA" in cb.conf.input_features
-                ):
-                    if row["Dmax"] == 0:
-                        data.at[i, "GFA"] = 0
-                    elif row["Dmax"] <= 0.15:
-                        data.at[i, "GFA"] = 1
-                    else:
-                        data.at[i, "GFA"] = 2
+                if not np.isnan(data.at[i, "Dmax"]):
+                    if (
+                        "GFA" in target_names
+                        or "GFA" in cb.conf.input_features
+                    ):
+                        if row["Dmax"] == 0:
+                            data.at[i, "GFA"] = 0
+                        elif row["Dmax"] <= 0.15:
+                            data.at[i, "GFA"] = 1
+                        else:
+
+                            data.at[i, "GFA"] = 2
                 else:
                     data.at[i, "Dmax"] = cb.features.mask_value
             else:
