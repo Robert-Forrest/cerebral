@@ -204,7 +204,7 @@ def build_model(
     dropout=0.3,
     learning_rate=0.01,
     ensemble_size=1,
-    activation="elu",
+    activation="relu",
     max_norm=3,
 ):
     """Constructs a model containing a shared branch, and individual feature
