@@ -62,16 +62,13 @@ def load_data(
 
     """
 
-    data_directory = cb.conf.data.directory
-    data_files = cb.conf.data.files
-
     data = []
-    for data_file in data_files:
+    for data_file in cb.conf.data:
         raw_data = None
         if ".csv" in data_file:
-            raw_data = pd.read_csv(data_directory + data_file)
+            raw_data = pd.read_csv(data_file)
         elif ".xls" in data_file:
-            raw_data = pd.read_excel(data_directory + data_file)
+            raw_data = pd.read_excel(data_file)
 
         if raw_data is not None:
 
@@ -87,7 +84,6 @@ def load_data(
             raise NotImplementedError(
                 data_file + " filetype not yet implemented."
             )
-
     data = pd.concat(data, ignore_index=True)
 
     data = cb.features.calculate_features(

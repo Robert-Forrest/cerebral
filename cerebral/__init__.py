@@ -107,14 +107,6 @@ def setup(user_config: dict = {}):
         conf.image_directory = image_directory
 
     if not hasattr(conf, "data"):
-        conf.data = OmegaConf.create({})
-
-    if "directory" not in conf.data:
-        conf.data.directory = "./"
-    if conf.data.directory[-1] != "/":
-        conf.data.directory += "/"
-
-    if "files" not in conf.data:
         raise Exception("No data files set!")
 
     if "input_features" not in conf:
