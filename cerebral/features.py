@@ -417,6 +417,7 @@ def _drop_correlated_features(data, target_names, required_features):
             and data.columns[i] not in target_names
             and data.columns[i] not in required_features
             and data.columns[i] != "composition"
+            and "_percentage" not in data.columns[i]
         ):
             for j in range(i + 1, len(correlation)):
                 if (
