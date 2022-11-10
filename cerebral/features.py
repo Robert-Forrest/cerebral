@@ -881,7 +881,7 @@ def filter_masked(data: pd.DataFrame, other: Optional[pd.DataFrame] = None):
     ----------
 
     data
-        The dataset to be filtered.
+        The data to be filtered.
     other
         Any other data to be selected from based on the filtering of data.
 
@@ -890,17 +890,24 @@ def filter_masked(data: pd.DataFrame, other: Optional[pd.DataFrame] = None):
     filtered_data = []
     filtered_other = []
 
-    i = 0
-    for _, value in data.iteritems():
-        if value != mask_value and not np.isnan(value):
-            filtered_data.append(value)
-            if other is not None:
-                if isinstance(other, pd.Series):
-                    filtered_other.append(other.iloc[i])
-                else:
-                    filtered_other.append(other[i])
-
-        i += 1
+    if isinstance(data, pd.Series):
+        for i, value in data.items():
+            if value != mask_value and not np.isnan(value):
+                filtered_data.append(value)
+                if other is not None:
+                    if isinstance(other, pd.Series):
+                        filtered_other.append(other.iloc[i])
+                    else:
+                        filtered_other.append(other[i])
+    else:
+        for i, value in enumerate(data):
+            if value != mask_value and not np.isnan(value):
+                filtered_data.append(value)
+                if other is not None:
+                    if isinstance(other, pd.Series):
+                        filtered_other.append(other.iloc[i])
+                    else:
+                        filtered_other.append(other[i])
 
     filtered_data = np.array(filtered_data)
 
