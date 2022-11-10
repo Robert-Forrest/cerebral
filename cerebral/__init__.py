@@ -55,6 +55,7 @@ def setup(user_config: dict = {}):
     if "targets" in conf:
         conf.target_names = [t.name for t in conf.targets]
 
+        max_loss_weight = 0
         for i in range(len(conf.targets)):
             if "type" not in conf.targets[i]:
                 conf.targets[i]["type"] = "numerical"
@@ -62,6 +63,12 @@ def setup(user_config: dict = {}):
                 conf.targets[i].weight = 1.0
             if "loss" not in conf.targets[i]:
                 conf.targets[i].loss = "Huber"
+
+            if conf.targets[i].weight > max_loss_weight:
+                max_loss_weight = conf.targets[i].weight
+
+        for i in range(len(conf.targets)):
+            conf.targets[i].weight /= max_loss_weight
 
     else:
         raise Exception("No targets set!")
