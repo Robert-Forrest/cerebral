@@ -23,7 +23,12 @@ def tprPerClass(y_true, y_pred, class_index=0):
     """
 
     pred = K.argmax(y_pred)
-    true = K.squeeze(y_true, axis=-1)
+
+    true = tf.cond(
+        tf.constant(len(y_true.shape) > 1, dtype=tf.bool),
+        lambda: K.squeeze(y_true, axis=-1),
+        lambda: y_true,
+    )
 
     mask = K.cast(K.not_equal(true, cb.features.mask_value), "int64")
 
@@ -56,7 +61,12 @@ def ppvPerClass(y_true, y_pred, class_index=0):
     """
 
     pred = K.argmax(y_pred)
-    true = K.squeeze(y_true, axis=-1)
+
+    true = tf.cond(
+        tf.constant(len(y_true.shape) > 1, dtype=tf.bool),
+        lambda: K.squeeze(y_true, axis=-1),
+        lambda: y_true,
+    )
 
     mask = K.cast(K.not_equal(true, cb.features.mask_value), "int64")
 
@@ -104,7 +114,12 @@ def tnrPerClass(y_true, y_pred, class_index=0):
     """
 
     pred = K.argmax(y_pred)
-    true = K.squeeze(y_true, axis=-1)
+
+    true = tf.cond(
+        tf.constant(len(y_true.shape) > 1, dtype=tf.bool),
+        lambda: K.squeeze(y_true, axis=-1),
+        lambda: y_true,
+    )
 
     mask = K.cast(K.not_equal(true, cb.features.mask_value), "int64")
 
@@ -130,6 +145,17 @@ def trueNegativeRate(y_true, y_pred):
     ) / 3
 
 
+def calc_trueNegativeRate(true, prediction):
+    if isinstance(prediction[0], (list, tuple, np.ndarray)):
+        predictionMax = []
+        for p in prediction:
+            predictionMax.append(np.argmax(p))
+
+        return trueNegativeRate(true, predictionMax)
+    else:
+        return trueNegativeRate(true, prediction)
+
+
 def npvPerClass(y_true, y_pred, class_index=0):
     """Calculate the per-class negative predictive value, ignoring masked values.
 
@@ -137,9 +163,14 @@ def npvPerClass(y_true, y_pred, class_index=0):
     """
 
     pred = K.argmax(y_pred)
-    true = K.squeeze(y_true, axis=-1)
 
-    mask = K.cast(K.not_equal(true, -1), "int64")
+    true = tf.cond(
+        tf.constant(len(y_true.shape) > 1, dtype=tf.bool),
+        lambda: K.squeeze(y_true, axis=-1),
+        lambda: y_true,
+    )
+
+    mask = K.cast(K.not_equal(true, cb.features.mask_value), "int64")
 
     pn = K.cast(K.not_equal(pred, class_index), "int64") * mask
     n = K.cast(K.not_equal(true, class_index), "int64")
@@ -187,6 +218,17 @@ def markedness(y_true, y_pred):
     )
 
 
+def matthewsCorrelation(y_true, y_pred) -> float:
+    recall = truePositiveRate(y_true, y_pred)
+    specificity = trueNegativeRate(y_true, y_pred)
+    precision = positivePredictiveValue(y_true, y_pred)
+    npv = negativePredictiveValue(y_true, y_pred)
+
+    return K.sqrt(recall * specificity * precision * npv) - K.sqrt(
+        (1 - recall) * (1 - specificity) * (1 - npv) * (1 - precision)
+    )
+
+
 def accuracy(y_true, y_pred):
     """Calculate the accuracy, ignoring masked values.
 
@@ -194,7 +236,14 @@ def accuracy(y_true, y_pred):
     """
 
     pred = K.argmax(y_pred)
-    true = K.cast(K.squeeze(y_true, axis=-1), "int64")
+
+    true = tf.cond(
+        tf.constant(len(y_true.shape) > 1, dtype=tf.bool),
+        lambda: K.squeeze(y_true, axis=-1),
+        lambda: y_true,
+    )
+
+    true = K.cast(true, "int64")
 
     mask = K.cast(K.not_equal(true, cb.features.mask_value), "int64")
     matches = K.cast(K.equal(true, pred), "int64") * mask
