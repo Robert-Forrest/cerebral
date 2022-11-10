@@ -771,6 +771,7 @@ def generate_sample_weights(
                 sample_weights.append(1)
         else:
             sample_weights.append(1)
+
     return np.array(sample_weights)
 
 
@@ -818,15 +819,13 @@ def create_datasets(
             num_categorical_targets += 1
 
     if num_categorical_targets == 1:
+        classes = data[categorical_target.name].unique()
         counts = data[categorical_target.name].value_counts()
-        num_samples = 0
-        for c in categorical_target.classes:
-            if c in counts:
-                num_samples += counts[c]
+        num_samples = sum(counts)
 
         class_weights = []
-        for c in categorical_target.classes:
-            if c in counts:
+        for c in classes:
+            if c != mask_value:
                 class_weights.append(float(num_samples / (2 * counts[c])))
             else:
                 class_weights.append(1.0)
