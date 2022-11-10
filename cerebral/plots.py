@@ -107,13 +107,13 @@ def write_errors(compositions, labels, predictions, suffix=None):
                 results_file.write(
                     compositions.iloc[j].to_string()
                     + " "
-                    + str(labels[target["name"]].iloc[j])
+                    + str(labels[target["name"]][j])
                     + " "
-                    + str(predictions[target_index][j])
+                    + str(predictions[target["name"]][j])
                     + " "
                     + str(
-                        predictions[target_index][j]
-                        - labels[target["name"]].iloc[j]
+                        predictions[target["name"]][j]
+                        - labels[target["name"]][j]
                     )
                     + "\n"
                 )
@@ -136,7 +136,7 @@ def gather_labelled_errors(labels, predictions, compositions, errors):
 
 
 def plot_results_regression(
-    train_labels,
+    train_truth,
     train_predictions,
     train_errors,
     test_labels=None,
@@ -166,32 +166,30 @@ def plot_results_regression(
         target_name = target["name"]
 
         (
-            masked_train_labels,
+            masked_train_truth,
             masked_train_predictions,
         ) = cb.features.filter_masked(
-            train_labels[target_name], train_predictions[i]
+            train_truth[target_name], train_predictions[target_name]
         )
         if train_compositions is not None:
             _, masked_train_compositions = cb.features.filter_masked(
-                train_labels[target_name], train_compositions
+                train_truth[target_name], train_compositions
             )
         if train_errorbars is not None:
             _, masked_train_errorbars = cb.features.filter_masked(
-                train_labels[target_name], train_errorbars[i]
+                train_truth[target_name], train_errorbars[target_name]
             )
 
         _, masked_train_errors = cb.features.filter_masked(
-            train_labels[target_name], train_errors[i]
+            train_truth[target_name], train_errors[target_name]
         )
-        abs_train_errors = np.abs(masked_train_errors).tolist()
-        abs_test_errors = None
 
         if test_labels is not None:
             (
                 masked_test_labels,
                 masked_test_predictions,
             ) = cb.features.filter_masked(
-                test_labels[target_name], test_predictions[i]
+                test_labels[target_name], test_predictions[target_name]
             )
             if test_compositions is not None:
                 _, masked_test_compositions = cb.features.filter_masked(
@@ -199,19 +197,18 @@ def plot_results_regression(
                 )
             if test_errorbars is not None:
                 _, masked_test_errorbars = cb.features.filter_masked(
-                    test_labels[target_name], test_errorbars[i]
+                    test_labels[target_name], test_errorbars[target_name]
                 )
 
-            abs_test_errors = np.abs(test_errors).tolist()
             _, masked_test_errors = cb.features.filter_masked(
-                test_labels[target_name], test_errors[i]
+                test_labels[target_name], test_errors[target_name]
             )
 
         labelled_errors = []
         if train_compositions is not None:
             labelled_errors.extend(
                 gather_labelled_errors(
-                    masked_train_labels,
+                    masked_train_truth,
                     masked_train_predictions,
                     masked_train_compositions,
                     masked_train_errors,
@@ -233,7 +230,7 @@ def plot_results_regression(
 
         if train_errorbars is not None:
             ax.errorbar(
-                masked_train_labels,
+                masked_train_truth,
                 masked_train_predictions,
                 yerr=masked_train_errorbars,
                 fmt="rx",
@@ -245,7 +242,7 @@ def plot_results_regression(
         else:
             if test_labels is not None:
                 ax.scatter(
-                    masked_train_labels,
+                    masked_train_truth,
                     masked_train_predictions,
                     label="Train",
                     s=5,
@@ -254,7 +251,7 @@ def plot_results_regression(
                 )
             else:
                 ax.scatter(
-                    masked_train_labels,
+                    masked_train_truth,
                     masked_train_predictions,
                     s=10,
                     alpha=0.8,
@@ -284,14 +281,14 @@ def plot_results_regression(
                 )
 
             min_point = np.min(
-                [np.min(masked_train_labels), np.min(masked_test_labels)]
+                [np.min(masked_train_truth), np.min(masked_test_labels)]
             )
             max_point = np.max(
-                [np.max(masked_train_labels), np.max(masked_test_labels)]
+                [np.max(masked_train_truth), np.max(masked_test_labels)]
             )
         else:
-            min_point = np.min(masked_train_labels)
-            max_point = np.max(masked_train_labels)
+            min_point = np.min(masked_train_truth)
+            max_point = np.max(masked_train_truth)
 
         lims = [min_point - 0.1 * min_point, max_point + 0.1 * min_point]
         ax.plot(lims, lims, "--k")
@@ -446,7 +443,7 @@ def plot_results_regression(
         plt.close()
 
 
-def plot_results_regression_heatmap(train_labels, train_predictions):
+def plot_results_regression_heatmap(train_truth, train_predictions):
     """Plot true versus prediction heatmaps for multiple regression models.
 
     :group: plots
@@ -454,7 +451,7 @@ def plot_results_regression_heatmap(train_labels, train_predictions):
     """
 
     i = 0
-    for feature in train_labels[0]:
+    for feature in train_truth[0]:
         if feature != "GFA":
 
             MAEs = []
@@ -466,10 +463,10 @@ def plot_results_regression_heatmap(train_labels, train_predictions):
             labels = []
             predictions = []
 
-            for j in range(len(train_labels)):
+            for j in range(len(train_truth)):
 
                 t, p = cb.features.filter_masked(
-                    train_labels[j][feature], train_predictions[j][i]
+                    train_truth[j][feature], train_predictions[j][feature]
                 )
 
                 MAEs.append(cb.metrics.calc_MAE(t, p))
@@ -574,7 +571,11 @@ def plot_results_regression_heatmap(train_labels, train_predictions):
 
 
 def plot_results_classification(
-    train_labels, train_predictions, test_labels=None, test_predictions=None
+    train_truth,
+    train_predictions,
+    test_labels=None,
+    test_predictions=None,
+    metrics=None,
 ):
     """Plot a confusion matrix for a classifier.
 
@@ -596,34 +597,19 @@ def plot_results_classification(
                 if not os.path.exists(image_directory + target_name):
                     os.makedirs(image_directory + target_name)
 
-            if len(train_labels.columns) > 1:
+            (
+                masked_train_truth,
+                masked_train_predictions,
+            ) = cb.features.filter_masked(
+                train_truth[target_name], train_predictions[target_name]
+            )
+            if test_labels is not None:
                 (
-                    masked_train_labels,
-                    masked_train_predictions,
+                    masked_test_labels,
+                    masked_test_predictions,
                 ) = cb.features.filter_masked(
-                    train_labels[target_name], train_predictions[i]
+                    test_labels[target_name], test_predictions[target_name]
                 )
-                if test_labels is not None:
-                    (
-                        masked_test_labels,
-                        masked_test_predictions,
-                    ) = cb.features.filter_masked(
-                        test_labels[target_name], test_predictions[i]
-                    )
-            else:
-                (
-                    masked_train_labels,
-                    masked_train_predictions,
-                ) = cb.features.filter_masked(
-                    train_labels[target_name], train_predictions
-                )
-                if test_labels is not None:
-                    (
-                        masked_test_labels,
-                        masked_test_predictions,
-                    ) = cb.features.filter_masked(
-                        test_labels[target_name], test_predictions
-                    )
 
             if test_labels is not None:
                 sets = ["train", "test"]
@@ -634,7 +620,7 @@ def plot_results_classification(
 
                 if set_name == "train":
                     raw_predictions = masked_train_predictions
-                    labels = masked_train_labels
+                    labels = masked_train_truth
                 else:
                     raw_predictions = masked_test_predictions
                     labels = masked_test_labels
