@@ -803,6 +803,7 @@ def create_datasets(
         train = data.copy()
 
     train_features = train.copy()
+
     train_labels = {}
     for feature in targets:
         if feature["name"] in train_features:
@@ -860,20 +861,16 @@ def create_datasets(
             test, targets=targets, weights=sample_weights_test
         )
 
-        return (
-            train_ds,
-            test_ds,
-            train_features,
-            test_features,
-            train_labels,
-            test_labels,
-        )
+        return (train_ds, test_ds)
 
-    return train_ds, train_features, train_labels
+    return train_ds
 
 
-def filter_masked(data: pd.DataFrame, other: Optional[pd.DataFrame] = None):
-    """Filters out masked or NaN values from a dataframe
+def filter_masked(
+    data: Union[pd.Series, list],
+    other: Optional[Union[list, pd.Series]] = None,
+):
+    """Filters out masked or NaN values from data.
 
     :group: utils
 
