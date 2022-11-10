@@ -6,6 +6,7 @@ from __future__ import (
     print_function,
     unicode_literals,
 )
+import os
 from typing import List
 
 import tensorflow as tf
@@ -127,50 +128,48 @@ def kfolds(originalData: pd.DataFrame, save: bool = False, plot: bool = False):
 
     folds = kfolds_split(originalData, num_folds)
 
+    original_image_directory = cb.conf.image_directory
+
     for foldIndex in range(num_folds):
 
         train_tmp = folds[foldIndex][0]
         test_tmp = folds[foldIndex][1]
 
-        train_tmp.pop("composition")
-        test_tmp.pop("composition")
+        train_compositions = train_tmp.pop("composition")
+        test_compositions = test_tmp.pop("composition")
 
-        (
-            train_ds,
-            test_ds,
-            train_features,
-            test_features,
-            train_labels,
-            test_labels,
-            sampleWeight,
-            sampleWeightTest,
-        ) = cb.features.create_datasets(
+        (train_ds, test_ds) = cb.features.create_datasets(
             originalData, cb.conf.targets, train=train_tmp, test=test_tmp
         )
 
-        cb.conf.model_name = foldIndex
-        model = cb.models.train_model(
-            train_features,
-            train_labels,
-            sampleWeight,
-            test_features=test_features,
-            test_labels=test_labels,
-            sampleWeight_test=sampleWeightTest,
-            plot=plot,
-            maxEpochs=cb.conf.train.get("max_epochs", 100),
-        )
-        if save and not plot:
-            cb.models.save(
-                model, cb.conf.output_directory + "/model" + str(foldIndex)
-            )
+        train_data = {"compositions": train_compositions, "dataset": train_ds}
 
-        train_predictions, test_predictions = cb.models.evaluate_model(
-            model,
+        test_data = {"compositions": test_compositions, "dataset": test_ds}
+
+        cb.conf.model_name = "fold_" + str(foldIndex)
+        cb.conf.image_directory = (
+            original_image_directory + cb.conf.model_name + "/"
+        )
+        os.makedirs(cb.conf.image_directory)
+
+        model, history = cb.models.compile_and_fit(
             train_ds,
-            train_labels,
-            test_ds,
-            test_labels,
-            plot=plot,
+            test_ds=test_ds,
+        )
+
+        (
+            train_predictions,
+            train_errors,
+            test_predictions,
+            test_errors,
+            metrics,
+        ) = cb.models.evaluate_model(
+            model,
+            train_data["dataset"],
+            train_data["labels"],
+            test_ds=test_data["dataset"],
+            train_compositions=train_data["compositions"],
+            test_compositions=test_data["compositions"],
         )
 
         fold_test_labels.append(test_labels)
@@ -216,6 +215,8 @@ def kfolds(originalData: pd.DataFrame, save: bool = False, plot: bool = False):
                         test_labels_masked, test_predictions_masked
                     )
                 )
+
+    cb.conf.image_directory = original_image_directory
 
     with open(
         cb.conf.output_directory + "/validation.dat", "w"
@@ -286,7 +287,7 @@ def kfolds(originalData: pd.DataFrame, save: bool = False, plot: bool = False):
     )
 
 
-def kfoldsEnsemble(originalData: pd.DataFrame):
+def kfoldsEnsemble(data: pd.DataFrame):
     """Construct an ensemble model using multiple k-folds submodels.
     See Section 4.2 of
     https://pubs.rsc.org/en/content/articlelanding/2022/dd/d2dd00026a.
@@ -296,24 +297,23 @@ def kfoldsEnsemble(originalData: pd.DataFrame):
     Parameters
     ----------
 
-    originalData
+    data
         The dataset used to train models, which will be folded into multiple
         training and testing subsets.
 
     """
 
-    kfolds(originalData, save=True, plot=True)
+    kfolds(data, save=True, plot=True)
 
-    compositions = originalData.pop("composition")
+    compositions = data.pop("composition")
 
     (
         train_ds,
         train_features,
         train_labels,
-        sampleWeight,
-    ) = cb.features.create_datasets(originalData, cb.conf.targets)
+    ) = cb.features.create_datasets(data, cb.conf.targets)
 
-    inputs = cb.models.build_input_layers(train_features)
+    inputs = cb.models.build_input_layers(train_ds)
     outputs = []
     losses, metrics = cb.models.setup_losses_and_metrics()
 
@@ -321,9 +321,7 @@ def kfoldsEnsemble(originalData: pd.DataFrame):
 
     submodel_outputs = []
     for k in range(num_folds):
-        submodel = cb.models.load(
-            cb.conf.output_directory + "/model_" + str(k)
-        )
+        submodel = cb.models.load(cb.conf.output_directory + "/fold_" + str(k))
         submodel._name = "ensemble_" + str(k)
         for layer in submodel.layers:
             layer.trainable = False
@@ -332,22 +330,24 @@ def kfoldsEnsemble(originalData: pd.DataFrame):
 
     for i in range(len(cb.conf.targets)):
 
-        submodel_output = [output[i] for output in submodel_outputs]
-
-        submodels_merged = tf.keras.layers.concatenate(submodel_output)
+        if len(cb.conf.targets) > 1:
+            submodel_output = [output[i] for output in submodel_outputs]
+            submodels_merged = tf.keras.layers.Concatenate()(submodel_output)
+        else:
+            submodels_merged = tf.keras.layers.Concatenate()(submodel_outputs)
 
         hidden = tf.keras.layers.Dense(64, activation="relu")(submodels_merged)
 
         output = None
-        if cb.conf.targets[i].type == "categorical":
+        if cb.conf.targets[i]["type"] == "categorical":
             activation = "softmax"
-            numNodes = 3
+            num_nodes = len(cb.conf.targets[i]["classes"])
         else:
             activation = "softplus"
-            numNodes = 1
+            num_nodes = 1
 
         output = tf.keras.layers.Dense(
-            numNodes, activation=activation, name=cb.conf.targets[i].name
+            num_nodes, activation=activation, name=cb.conf.targets[i].name
         )(hidden)
         outputs.append(output)
 
@@ -372,10 +372,8 @@ def kfoldsEnsemble(originalData: pd.DataFrame):
 
     model, history = cb.models.fit(
         model,
-        train_features,
-        train_labels,
-        sampleWeight,
-        maxEpochs=cb.conf.train.get("max_epochs", 100),
+        train_ds,
+        max_epochs=cb.conf.train.get("max_epochs", 1000),
     )
     cb.models.save(model, cb.conf.output_directory + "/model")
 
