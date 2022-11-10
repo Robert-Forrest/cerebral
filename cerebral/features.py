@@ -298,6 +298,9 @@ def calculate_features(
                 .astype(np.int64)
             )
 
+    if merge_duplicates:
+        data = merge_duplicate_compositions(data)
+
     input_feature_values = {}
     for feature in input_features:
         if "_percentage" not in feature:
@@ -322,10 +325,9 @@ def calculate_features(
 
     data = data.fillna(mask_value)
 
-    if merge_duplicates:
-        data = merge_duplicate_compositions(data)
-
-    if cb.conf.plot:
+    if plot or (
+        cb.conf.get("plot", False) and cb.conf.plot.get("features", False)
+    ):
         cb.plots.plot_correlation(data)
         cb.plots.plot_feature_variation(data)
 
@@ -549,34 +551,43 @@ def merge_duplicate_compositions(data: pd.DataFrame) -> pd.DataFrame:
 
     deduplicated_rows = []
     for composition in duplicate_compositions:
-        averaged_features = {}
-        num_contributions = {}
+        feature_values = {}
         for feature in duplicate_compositions[composition][0].keys():
             if feature != "composition":
-                averaged_features[feature] = 0
-                num_contributions[feature] = 0
+                feature_values[feature] = []
 
         for i in range(len(duplicate_compositions[composition])):
-            for feature in averaged_features:
+            for feature in feature_values:
                 if duplicate_compositions[composition][i][
                     feature
                 ] != mask_value and not pd.isnull(
                     duplicate_compositions[composition][i][feature]
                 ):
-                    averaged_features[feature] += duplicate_compositions[
-                        composition
-                    ][i][feature]
-                    num_contributions[feature] += 1
+                    feature_values[feature].append(
+                        duplicate_compositions[composition][i][feature]
+                    )
 
-        for feature in averaged_features:
-            if num_contributions[feature] == 0:
-                averaged_features[feature] = mask_value
-            elif num_contributions[feature] > 1:
-                averaged_features[feature] /= num_contributions[feature]
+        for feature in feature_values:
+            if len(feature_values[feature]) == 0:
+                feature_values[feature] = mask_value
+                continue
 
-        averaged_features["composition"] = composition
+            if feature in cb.conf.target_names:
+                categorical_feature = False
+                for target in cb.conf.targets:
+                    if target.name == feature:
+                        if target["type"] == "categorical":
+                            categorical_feature = True
+                        break
+                if categorical_feature:
+                    feature_values[feature] = np.max(feature_values[feature])
+                    continue
 
-        deduplicated_rows.append(pd.DataFrame(averaged_features, index=[0]))
+            feature_values[feature] = np.mean(feature_values[feature])
+
+        feature_values["composition"] = composition
+
+        deduplicated_rows.append(pd.DataFrame(feature_values, index=[0]))
 
     if len(deduplicated_rows) > 0:
         deduplicated_data = pd.concat(deduplicated_rows, ignore_index=True)
