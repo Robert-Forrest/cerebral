@@ -325,9 +325,7 @@ def calculate_features(
 
     data = data.fillna(mask_value)
 
-    if plot or (
-        cb.conf.get("plot", False) and cb.conf.plot.get("features", False)
-    ):
+    if cb.conf.get("plot", False) and cb.conf.plot.get("features", False):
         cb.plots.plot_correlation(data)
         cb.plots.plot_feature_variation(data)
 
