@@ -809,7 +809,7 @@ def get_model_input_features(model):
     return inputs
 
 
-def predict(model, alloys):
+def predict(model, alloys, uncertainty=False):
     """Use a trained model to produce predictions for a set of alloy
     compositions.
 
@@ -824,19 +824,82 @@ def predict(model, alloys):
         merge_duplicates=False,
         drop_correlated_features=False,
     )
-    compositions = data.pop("composition")
-
-    raw_predictions = model.predict(
-        cb.features.df_to_dataset(data, prediction_features)
+    data.pop("composition")
+    inputs = cb.features.df_to_dataset(
+        data, prediction_features, shuffle=False
     )
 
-    predictions = {}
-    for i in range(len(raw_predictions)):
-        predictions[prediction_features[i]["name"]] = raw_predictions[i]
+    if uncertainty:
+        collected_predictions = {f["name"]: [] for f in prediction_features}
+        predictions = {f["name"]: [] for f in prediction_features}
+        for i in range(5):
+            current_predictions = extract_predictions_training(
+                model,
+                inputs,
+                prediction_features,
+            )
+            for feature in collected_predictions:
+                collected_predictions[feature].append(
+                    current_predictions[feature]
+                )
+        for feature in collected_predictions:
+            for i in range(len(collected_predictions[feature][0])):
+                alloy_predictions = []
+                for j in range(len(collected_predictions[feature])):
+                    alloy_predictions.append(
+                        collected_predictions[feature][j][i]
+                    )
+                predictions[feature].append(
+                    (np.mean(alloy_predictions), np.std(alloy_predictions))
+                )
 
-        if prediction_features[i]["type"] == "numerical":
-            predictions[prediction_features[i]["name"]] = predictions[
-                prediction_features[i]["name"]
-            ].flatten()
+        return predictions
+    else:
+        return extract_predictions(
+            model.predict(inputs),
+            prediction_features,
+        )
+
+
+def extract_predictions_training(model, dataset, prediction_features):
+
+    prediction_names = [f["name"] for f in prediction_features]
+    predictions = {t: [] for t in prediction_names}
+
+    for example in dataset:
+
+        p = model(example, training=True)
+        if not isinstance(p, list):
+            p = p.numpy()
+
+        for i in range(len(predictions)):
+            if prediction_features[i]["type"] == "numerical":
+                if len(predictions) == 1:
+                    predictions[prediction_names[i]].extend(p.flatten())
+                else:
+                    if not isinstance(i, np.ndarray):
+                        p[i] = p[i].numpy()
+                    predictions[prediction_names[i]].extend(p[i].flatten())
+            else:
+                if len(predictions) == 1:
+                    predictions[prediction_names[i]].extend(p)
+                else:
+                    predictions[prediction_names[i]].extend(p[i])
+
+    return predictions
+
+
+def extract_predictions(raw_predictions, prediction_features):
+    predictions = {}
+    if len(prediction_features) > 1:
+        for i in range(len(raw_predictions)):
+            predictions[prediction_features[i]["name"]] = raw_predictions[i]
+
+            if prediction_features[i]["type"] == "numerical":
+                predictions[prediction_features[i]["name"]] = predictions[
+                    prediction_features[i]["name"]
+                ].flatten()
+    else:
+        predictions[prediction_features[0]["name"]] = raw_predictions.flatten()
 
     return predictions
