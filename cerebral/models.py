@@ -228,7 +228,7 @@ def build_model(
         normalized_inputs, name="Inputs"
     )
 
-    if num_shared_layers > 0 and len(cb.conf.targets) > 1:
+    if num_shared_layers > 0:
         base_model = build_base_model(
             concatenated_inputs,
             num_shared_layers,
