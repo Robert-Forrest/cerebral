@@ -80,7 +80,7 @@ def kfolds_split(
     return folds
 
 
-def kfolds(originalData: pd.DataFrame, save: bool = False, plot: bool = False):
+def kfolds(data: pd.DataFrame, save: bool = False, plot: bool = False):
     """Performs k-folds cross-validation to evaluate a model.
 
     :group: kfolds
@@ -88,7 +88,7 @@ def kfolds(originalData: pd.DataFrame, save: bool = False, plot: bool = False):
     Parameters
     ----------
 
-    originalData
+    data
         The dataset used to train models, which will be folded into multiple
         training and testing subsets.
     save
@@ -105,10 +105,10 @@ def kfolds(originalData: pd.DataFrame, save: bool = False, plot: bool = False):
     for feature in cb.conf.targets:
         if feature.type == "numerical":
             MADs[feature.name] = cb.metrics.meanAbsoluteDeviation(
-                cb.features.filter_masked(originalData[feature.name])
+                cb.features.filter_masked(data[feature.name])
             )
             RMSDs[feature.name] = cb.metrics.rootMeanSquareDeviation(
-                cb.features.filter_masked(originalData[feature.name])
+                cb.features.filter_masked(data[feature.name])
             )
 
     MAEs = {}
@@ -123,12 +123,10 @@ def kfolds(originalData: pd.DataFrame, save: bool = False, plot: bool = False):
             accuracies[feature.name] = []
             f1s[feature.name] = []
 
-    fold_test_labels = []
+    fold_test_truth = []
     fold_test_predictions = []
 
-    folds = kfolds_split(originalData, num_folds)
-
-    original_image_directory = cb.conf.image_directory
+    folds = kfolds_split(data, num_folds)
 
     for foldIndex in range(num_folds):
 
@@ -138,8 +136,8 @@ def kfolds(originalData: pd.DataFrame, save: bool = False, plot: bool = False):
         train_compositions = train_tmp.pop("composition")
         test_compositions = test_tmp.pop("composition")
 
-        (train_ds, test_ds) = cb.features.create_datasets(
-            originalData, cb.conf.targets, train=train_tmp, test=test_tmp
+        train_ds, test_ds = cb.features.create_datasets(
+            data, cb.conf.targets, train=train_tmp, test=test_tmp
         )
 
         train_data = {"compositions": train_compositions, "dataset": train_ds}
@@ -154,65 +152,60 @@ def kfolds(originalData: pd.DataFrame, save: bool = False, plot: bool = False):
         )
 
         (
-            train_predictions,
-            train_errors,
-            test_predictions,
-            test_errors,
+            train_evaluation,
+            test_evaluation,
             metrics,
         ) = cb.models.evaluate_model(
             model,
             train_data["dataset"],
-            train_data["labels"],
             test_ds=test_data["dataset"],
             train_compositions=train_data["compositions"],
             test_compositions=test_data["compositions"],
         )
 
-        fold_test_labels.append(test_labels)
-        fold_test_predictions.append(test_predictions)
+        fold_test_truth.append(test_evaluation["truth"])
+        fold_test_predictions.append(test_evaluation["predictions"])
 
         for feature in cb.conf.targets:
-            featureIndex = cb.conf.target_names.index(feature.name)
             if feature.type == "numerical":
 
                 (
-                    test_labels_masked,
+                    test_truth_masked,
                     test_predictions_masked,
                 ) = cb.features.filter_masked(
-                    test_labels[feature.name],
-                    test_predictions[featureIndex].flatten(),
+                    test_evaluation["truth"][feature.name],
+                    test_evaluation["predictions"][feature.name],
                 )
 
                 MAEs[feature.name].append(
                     cb.metrics.calc_MAE(
-                        test_labels_masked, test_predictions_masked
+                        test_truth_masked, test_predictions_masked
                     )
                 )
                 RMSEs[feature.name].append(
                     cb.metrics.calc_RMSE(
-                        test_labels_masked, test_predictions_masked
+                        test_truth_masked, test_predictions_masked
                     )
                 )
             else:
                 (
-                    test_labels_masked,
+                    test_truth_masked,
                     test_predictions_masked,
                 ) = cb.features.filter_masked(
-                    test_labels[feature.name], test_predictions[featureIndex]
+                    test_evaluation["truth"][feature.name],
+                    test_evaluation["predictions"][feature.name],
                 )
 
                 accuracies[feature.name].append(
                     cb.metrics.calc_accuracy(
-                        test_labels_masked, test_predictions_masked
+                        test_truth_masked, test_predictions_masked
                     )
                 )
                 f1s[feature.name].append(
                     cb.metrics.calc_f1(
-                        test_labels_masked, test_predictions_masked
+                        test_truth_masked, test_predictions_masked
                     )
                 )
-
-    cb.conf.image_directory = original_image_directory
 
     with open(
         cb.conf.output_directory + "/validation.dat", "w"
@@ -279,7 +272,7 @@ def kfolds(originalData: pd.DataFrame, save: bool = False, plot: bool = False):
                 )
 
     cb.plots.plot_results_regression_heatmap(
-        fold_test_labels, fold_test_predictions
+        fold_test_truth, fold_test_predictions
     )
 
 
@@ -303,11 +296,8 @@ def kfoldsEnsemble(data: pd.DataFrame):
 
     compositions = data.pop("composition")
 
-    (
-        train_ds,
-        train_features,
-        train_labels,
-    ) = cb.features.create_datasets(data, cb.conf.targets)
+    train_ds = cb.features.create_datasets(data, cb.conf.targets)
+    train_data = {"compositions": compositions, "dataset": train_ds}
 
     inputs = cb.models.build_input_layers(train_ds)
     outputs = []
@@ -321,6 +311,7 @@ def kfoldsEnsemble(data: pd.DataFrame):
         submodel._name = "ensemble_" + str(k)
         for layer in submodel.layers:
             layer.trainable = False
+            # layer._name = "ensemble_" + str(k) + "_" + layer.name
 
         submodel_outputs.append(submodel(inputs))
 
