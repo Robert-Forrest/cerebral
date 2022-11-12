@@ -709,6 +709,11 @@ def df_to_dataset(
 
     dataframe = dataframe.copy()
 
+    if "composition" in dataframe:
+        dataframe["composition"] = dataframe["composition"].map(
+            lambda r: r.to_string()
+        )
+
     label_names = []
     for feature in targets:
         if feature["name"] in dataframe.columns:
