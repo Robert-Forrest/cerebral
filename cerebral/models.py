@@ -339,17 +339,10 @@ def train_model(data, max_epochs=1000):
             data, train_percentage=cb.conf.train.train_percentage
         )
 
-        train_compositions = train.pop("composition")
-        test_compositions = test.pop("composition")
-
         (
             train_ds,
             test_ds,
         ) = cb.features.create_datasets(data, cb.conf.targets, train, test)
-
-        train_data = {"compositions": train_compositions, "dataset": train_ds}
-
-        test_data = {"compositions": test_compositions, "dataset": test_ds}
 
         model, history = compile_and_fit(
             train_ds,
@@ -357,22 +350,20 @@ def train_model(data, max_epochs=1000):
             max_epochs=max_epochs,
         )
 
-        return model, history, train_data, test_data
+        return model, history, train_ds, test_ds
 
     else:
-        train = data
-        train_compositions = train.pop("composition")
 
-        train_ds = cb.features.create_datasets(data, cb.conf.targets, train)
-
-        train_data = {"compositions": train_compositions, "dataset": train_ds}
+        train_ds = cb.features.create_datasets(
+            data, cb.conf.targets, train=data
+        )
 
         model, history = compile_and_fit(
             train_ds,
             max_epochs=max_epochs,
         )
 
-        return model, history, train_data
+        return model, history, train_ds
 
 
 def compile_and_fit(train_ds, test_ds=None, max_epochs=1000):
@@ -487,12 +478,15 @@ def fit(
     return model, history
 
 
-def extract_predictions(model, dataset, prediction_names):
+def extract_predictions_truths(model, dataset, prediction_names):
 
     predictions = {t: [] for t in prediction_names}
     truths = {t: [] for t in prediction_names}
+    compositions = []
 
     for example, true, weight in dataset:
+        compositions.extend(example["composition"].numpy())
+
         p = model.predict(example)
 
         for i in range(len(predictions)):
@@ -516,7 +510,10 @@ def extract_predictions(model, dataset, prediction_names):
                 true[prediction_names[i]].numpy()
             )
 
-    return predictions, truths
+    for i in range(len(compositions)):
+        compositions[i] = compositions[i].decode("UTF-8")
+
+    return predictions, truths, compositions
 
 
 def calculate_prediction_errors(
@@ -626,21 +623,13 @@ def calculate_classification_metrics(
     return metrics
 
 
-def evaluate_model(
-    model,
-    train_ds,
-    test_ds=None,
-    train_compositions=None,
-    test_compositions=None,
-):
+def evaluate_model(model, train_ds, test_ds=None):
     """Evaluate the performance of a trained model by comparison to known data.
 
     :group: models
     """
 
     metrics = {}
-    train_errorbars = None
-    test_errorbars = None
 
     train_predictions = []
 
@@ -651,9 +640,12 @@ def evaluate_model(
         f["name"] for f in get_model_prediction_features(model)
     ]
 
-    train_predictions, train_truth = extract_predictions(
-        model, train_ds, prediction_names
-    )
+    (
+        train_predictions,
+        train_truth,
+        train_compositions,
+    ) = extract_predictions_truths(model, train_ds, prediction_names)
+
     train_errors = calculate_prediction_errors(
         train_truth, train_predictions, prediction_names
     )
@@ -671,6 +663,7 @@ def evaluate_model(
         ) = cb.features.filter_masked(
             train_truth[target_name], train_predictions[target_name]
         )
+
         metrics[target_name] = {}
         if target["type"] == "numerical":
             metrics[target_name]["train"] = calculate_regression_metrics(
@@ -686,14 +679,18 @@ def evaluate_model(
     test_predictions = None
     test_truth = None
     test_errors = None
+    test_compositions = None
 
     if test_ds:
         masked_test_truth = {}
         masked_test_predictions = {}
 
-        test_predictions, test_truth = extract_predictions(
-            model, test_ds, prediction_names
-        )
+        (
+            test_predictions,
+            test_truth,
+            test_compositions,
+        ) = extract_predictions_truths(model, test_ds, prediction_names)
+
         test_errors = calculate_prediction_errors(
             test_truth, test_predictions, prediction_names
         )
@@ -747,25 +744,37 @@ def evaluate_model(
             train_truth,
             train_predictions,
             train_errors,
+            test_truth,
             test_predictions,
             test_errors,
             metrics=metrics,
             train_compositions=train_compositions,
             test_compositions=test_compositions,
-            train_errorbars=train_errorbars,
-            test_errorbars=test_errorbars,
         )
 
     if test_ds is not None:
         return (
-            train_predictions,
-            train_errors,
-            test_predictions,
-            test_errors,
+            {
+                "predictions": train_predictions,
+                "truth": train_truth,
+                "errors": train_errors,
+            },
+            {
+                "predictions": test_predictions,
+                "truth": test_truth,
+                "errors": test_errors,
+            },
             metrics,
         )
     else:
-        return train_predictions, train_errors, metrics
+        return (
+            {
+                "predictions": train_predictions,
+                "truth": train_truth,
+                "errors": train_errors,
+            },
+            metrics,
+        )
 
 
 def get_model_prediction_features(model):
