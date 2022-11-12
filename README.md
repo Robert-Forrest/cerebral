@@ -132,11 +132,11 @@ example model predicts price value for pure copper which is in the vicinity of
 the value originally calculated by linear mixture: 
 
 ```python
-cb.models.predict(model, "Cu100")["price"]
->>> {'price': array([6.60157898])} 
+>>> cb.models.predict(model, "Cu100")["price"]
+{'price': array([6.60157898])}
 
-mg.calculate("Cu100", "price")
->>> 6.0
+>>> mg.calculate("Cu100", "price")
+6.0
 ```
 
 ## Documentation
