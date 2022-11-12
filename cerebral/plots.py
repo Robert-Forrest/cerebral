@@ -28,13 +28,6 @@ def plot_training(history):
 
     """
 
-    image_directory = None
-    if cb.conf.save:
-        if not os.path.exists(cb.conf.image_directory):
-            os.makedirs(cb.conf.image_directory)
-
-        image_directory = cb.conf.image_directory
-
     for metric in history.history:
 
         if "val_" not in metric:
@@ -66,15 +59,18 @@ def plot_training(history):
             plt.tight_layout()
 
             if cb.conf.save:
+                image_path = cb.conf.output_directory
+                if cb.conf.model_name not in image_path:
+                    image_path += cb.conf.model_name
+
                 if "_" in metric:
                     feature = metric.split("_")[0]
-                    if not os.path.exists(image_directory + feature):
-                        os.makedirs(image_directory + feature)
-                    plt.savefig(
-                        image_directory + feature + "/" + metric + ".png"
-                    )
-                else:
-                    plt.savefig(image_directory + metric + ".png")
+
+                    image_path += "/" + feature
+                    if not os.path.exists(image_path):
+                        os.makedirs(image_path, exist_ok=True)
+
+                plt.savefig(image_path + "/" + metric + ".png")
             else:
                 plt.show()
 
@@ -85,36 +81,44 @@ def plot_training(history):
 
 def write_errors(compositions, labels, predictions, suffix=None):
     for target_index, target in enumerate(cb.conf.targets):
-        if target["type"] != "numerical":
-            continue
 
         target_name = target["name"]
 
-        results_file_path = (
-            cb.conf.output_directory
-            + "/"
-            + cb.conf.model_name
-            + "_"
-            + target_name
-            + "_error"
-        )
+        results_file_path = cb.conf.output_directory
+        if cb.conf.model_name not in results_file_path:
+            results_file_path += "/" + cb.conf.model_name
+
+        results_file_path += target_name + "/" + target_name + "_error"
+
         if suffix is not None:
             results_file_path += "_" + suffix
         results_file_path += ".dat"
 
         with open(results_file_path, "w") as results_file:
             for j in range(len(compositions)):
+                if labels[target["name"]][j] != -1:
+                    if target["type"] == "numerical":
+                        error = (
+                            predictions[target["name"]][j]
+                            - labels[target["name"]][j]
+                        )
+                    else:
+                        error = (
+                            np.argmax(predictions[target["name"]][j])
+                            == labels[target["name"]][j]
+                        )
+
+                else:
+                    error = 0
+
                 results_file.write(
-                    compositions.iloc[j].to_string()
+                    compositions[j]
                     + " "
                     + str(labels[target["name"]][j])
                     + " "
                     + str(predictions[target["name"]][j])
                     + " "
-                    + str(
-                        predictions[target["name"]][j]
-                        - labels[target["name"]][j]
-                    )
+                    + str(error)
                     + "\n"
                 )
 
@@ -139,7 +143,7 @@ def plot_results_regression(
     train_truth,
     train_predictions,
     train_errors,
-    test_labels=None,
+    test_truth=None,
     test_predictions=None,
     test_errors=None,
     train_compositions=None,
@@ -153,11 +157,6 @@ def plot_results_regression(
     :group: plots
 
     """
-
-    if cb.conf.save:
-        image_directory = cb.conf.image_directory
-        if not os.path.exists(image_directory):
-            os.makedirs(image_directory)
 
     for i, target in enumerate(cb.conf.targets):
         if target["type"] != "numerical":
@@ -184,24 +183,24 @@ def plot_results_regression(
             train_truth[target_name], train_errors[target_name]
         )
 
-        if test_labels is not None:
+        if test_truth is not None:
             (
-                masked_test_labels,
+                masked_test_truth,
                 masked_test_predictions,
             ) = cb.features.filter_masked(
-                test_labels[target_name], test_predictions[target_name]
+                test_truth[target_name], test_predictions[target_name]
             )
             if test_compositions is not None:
                 _, masked_test_compositions = cb.features.filter_masked(
-                    test_labels[target_name], test_compositions
+                    test_truth[target_name], test_compositions
                 )
             if test_errorbars is not None:
                 _, masked_test_errorbars = cb.features.filter_masked(
-                    test_labels[target_name], test_errorbars[target_name]
+                    test_truth[target_name], test_errorbars[target_name]
                 )
 
             _, masked_test_errors = cb.features.filter_masked(
-                test_labels[target_name], test_errors[target_name]
+                test_truth[target_name], test_errors[target_name]
             )
 
         labelled_errors = []
@@ -218,7 +217,7 @@ def plot_results_regression(
         if test_compositions is not None:
             labelled_errors.extend(
                 gather_labelled_errors(
-                    masked_test_labels,
+                    masked_test_truth,
                     masked_test_predictions,
                     masked_test_compositions,
                     masked_test_errors,
@@ -240,7 +239,7 @@ def plot_results_regression(
                 elinewidth=0.75,
             )
         else:
-            if test_labels is not None:
+            if test_truth is not None:
                 ax.scatter(
                     masked_train_truth,
                     masked_train_predictions,
@@ -258,10 +257,10 @@ def plot_results_regression(
                     marker="x",
                 )
 
-        if test_labels is not None:
+        if test_truth is not None:
             if test_errorbars is not None:
                 ax.errorbar(
-                    masked_test_labels,
+                    masked_test_truth,
                     masked_test_predictions,
                     yerr=masked_test_errorbars,
                     fmt="bx",
@@ -272,7 +271,7 @@ def plot_results_regression(
                 )
             else:
                 ax.scatter(
-                    masked_test_labels,
+                    masked_test_truth,
                     masked_test_predictions,
                     label="Test",
                     s=10,
@@ -281,10 +280,10 @@ def plot_results_regression(
                 )
 
             min_point = np.min(
-                [np.min(masked_train_truth), np.min(masked_test_labels)]
+                [np.min(masked_train_truth), np.min(masked_test_truth)]
             )
             max_point = np.max(
-                [np.max(masked_train_truth), np.max(masked_test_labels)]
+                [np.max(masked_train_truth), np.max(masked_test_truth)]
             )
         else:
             min_point = np.min(masked_train_truth)
@@ -337,7 +336,7 @@ def plot_results_regression(
                 + cb.features.units[target_name]
             )
 
-            if test_labels is not None:
+            if test_truth is not None:
                 descriptionStr = (
                     r"$R^2$"
                     + ": Train: "
@@ -368,8 +367,8 @@ def plot_results_regression(
         ax.set_aspect("equal", "box")
 
         X = list(masked_train_truth)
-        if test_labels is not None:
-            X.extend(masked_test_labels)
+        if test_truth is not None:
+            X.extend(masked_test_truth)
         Y = list(masked_train_predictions)
         if test_predictions is not None:
             Y.extend(masked_test_predictions)
@@ -397,10 +396,12 @@ def plot_results_regression(
         plt.tight_layout()
 
         if cb.conf.save:
-            if not os.path.exists(image_directory + target_name):
-                os.makedirs(image_directory + target_name)
+            image_path = cb.conf.output_directory
+            if cb.conf.model_name not in image_path:
+                image_path += cb.conf.model_name
             plt.savefig(
-                image_directory
+                image_path
+                + "/"
                 + target_name
                 + "/"
                 + target_name
@@ -413,7 +414,7 @@ def plot_results_regression(
         plt.clf()
         plt.close()
 
-        if test_labels is not None:
+        if test_truth is not None:
             plt.hist(masked_train_errors, label="Train", density=True, bins=40)
             plt.hist(masked_test_errors, label="Test", density=True, bins=40)
             plt.legend(loc="best")
@@ -433,8 +434,12 @@ def plot_results_regression(
         plt.tight_layout()
 
         if cb.conf.save:
+            image_path = cb.conf.output_directory
+            if cb.conf.model_name not in image_path:
+                image_path += cb.conf.model_name
             plt.savefig(
-                image_directory
+                image_path
+                + "/"
                 + target_name
                 + "/"
                 + target_name
@@ -556,10 +561,12 @@ def plot_results_regression_heatmap(train_truth, train_predictions):
 
             plt.tight_layout()
             if cb.conf.save:
-                if not os.path.exists(cb.conf.image_directory + feature):
-                    os.makedirs(cb.conf.image_directory + feature)
+                image_path = cb.conf.output_directory
+                if cb.conf.model_name not in image_path:
+                    image_path += cb.conf.model_name
                 plt.savefig(
-                    cb.conf.image_directory
+                    image_path
+                    + "/"
                     + feature
                     + "/"
                     + feature
@@ -578,7 +585,7 @@ def plot_results_regression_heatmap(train_truth, train_predictions):
 def plot_results_classification(
     train_truth,
     train_predictions,
-    test_labels=None,
+    test_truth=None,
     test_predictions=None,
     metrics=None,
 ):
@@ -594,29 +601,21 @@ def plot_results_classification(
             target_name = target["name"]
             classes = target["classes"]
 
-            image_directory = None
-            if cb.conf.save:
-                image_directory = cb.conf.image_directory
-                if not os.path.exists(image_directory):
-                    os.makedirs(image_directory)
-                if not os.path.exists(image_directory + target_name):
-                    os.makedirs(image_directory + target_name)
-
             (
                 masked_train_truth,
                 masked_train_predictions,
             ) = cb.features.filter_masked(
                 train_truth[target_name], train_predictions[target_name]
             )
-            if test_labels is not None:
+            if test_truth is not None:
                 (
-                    masked_test_labels,
+                    masked_test_truth,
                     masked_test_predictions,
                 ) = cb.features.filter_masked(
-                    test_labels[target_name], test_predictions[target_name]
+                    test_truth[target_name], test_predictions[target_name]
                 )
 
-            if test_labels is not None:
+            if test_truth is not None:
                 sets = ["train", "test"]
             else:
                 sets = ["train"]
@@ -628,14 +627,13 @@ def plot_results_classification(
                     labels = masked_train_truth
                 else:
                     raw_predictions = masked_test_predictions
-                    labels = masked_test_labels
+                    labels = masked_test_truth
 
+                image_path = cb.conf.output_directory
+                if cb.conf.model_name not in image_path:
+                    image_path += cb.conf.model_name
                 plot_multiclass_roc(
-                    labels,
-                    raw_predictions,
-                    target_name,
-                    set_name,
-                    image_directory,
+                    labels, raw_predictions, target_name, set_name, image_path
                 )
 
                 predictions = []
@@ -782,8 +780,12 @@ def plot_results_classification(
                 plt.tight_layout()
 
                 if cb.conf.save:
+                    image_path = cb.conf.output_directory
+                    if cb.conf.model_name not in image_path:
+                        image_path += cb.conf.model_name
                     plt.savefig(
-                        image_directory
+                        image_path
+                        + "/"
                         + target_name
                         + "/confusion_"
                         + set_name
@@ -865,8 +867,10 @@ def plot_distributions(data):
     """
 
     if cb.conf.save:
-        if not os.path.exists(cb.conf.image_directory + "distributions"):
-            os.makedirs(cb.conf.image_directory + "distributions")
+        if not os.path.exists(cb.conf.output_directory + "/distributions"):
+            os.makedirs(
+                cb.conf.output_directory + "distributions", exist_ok=True
+            )
 
     for feature in data.columns:
         if feature == "composition" or feature not in cb.conf.target_names:
@@ -928,7 +932,7 @@ def plot_distributions(data):
 
         if cb.conf.save:
             plt.savefig(
-                cb.conf.image_directory + "distributions/" + feature + ".png"
+                cb.conf.output_directory + "distributions/" + feature + ".png"
             )
         else:
             plt.show()
@@ -948,7 +952,7 @@ def plot_distributions(data):
 
         if cb.conf.save:
             plt.savefig(
-                cb.conf.image_directory
+                cb.conf.output_directory
                 + "distributions/"
                 + feature
                 + "_all.png"
@@ -968,10 +972,6 @@ def plot_feature_variation(data, suffix=None):
     :group: plots
 
     """
-
-    if cb.conf.save:
-        if not os.path.exists(cb.conf.image_directory):
-            os.makedirs(cb.conf.image_directory)
 
     tmpData = data.copy()
     if "composition" in tmpData.columns:
@@ -1005,10 +1005,10 @@ def plot_feature_variation(data, suffix=None):
 
     if cb.conf.save:
         if suffix is None:
-            plt.savefig(cb.conf.image_directory + "variance.png")
+            plt.savefig(cb.conf.output_directory + "variance.png")
         else:
             plt.savefig(
-                cb.conf.image_directory + "variance_" + suffix + ".png"
+                cb.conf.output_directory + "variance_" + suffix + ".png"
             )
     else:
         plt.show()
@@ -1027,8 +1027,10 @@ def plot_correlation(data, suffix=None):
     """
 
     if cb.conf.save:
-        if not os.path.exists(cb.conf.image_directory + "correlations"):
-            os.makedirs(cb.conf.image_directory + "correlations")
+        if not os.path.exists(cb.conf.output_directory + "correlations"):
+            os.makedirs(
+                cb.conf.output_directory + "correlations", exist_ok=True
+            )
 
     tmpData = data.copy()
 
@@ -1056,14 +1058,14 @@ def plot_correlation(data, suffix=None):
     if cb.conf.save:
         if suffix is not None:
             plt.savefig(
-                cb.conf.image_directory
+                cb.conf.output_directory
                 + "correlations/dendrogram_"
                 + suffix
                 + ".png"
             )
         else:
             plt.savefig(
-                cb.conf.image_directory + "correlations/dendrogram.png"
+                cb.conf.output_directory + "correlations/dendrogram.png"
             )
     else:
         plt.show()
@@ -1099,7 +1101,7 @@ def plot_correlation(data, suffix=None):
     if cb.conf.save:
         if suffix is not None:
             hmap.figure.savefig(
-                cb.conf.image_directory
+                cb.conf.output_directory
                 + "correlations/all_correlation_"
                 + suffix
                 + ".png",
@@ -1107,7 +1109,7 @@ def plot_correlation(data, suffix=None):
             )
         else:
             hmap.figure.savefig(
-                cb.conf.image_directory + "correlations/all_correlation.png",
+                cb.conf.output_directory + "correlations/all_correlation.png",
                 format="png",
             )
     else:
@@ -1173,7 +1175,7 @@ def plot_correlation(data, suffix=None):
         if cb.conf.save:
             if suffix is not None:
                 plt.savefig(
-                    cb.conf.image_directory
+                    cb.conf.output_directory
                     + "correlations/"
                     + feature
                     + "_correlation_"
@@ -1182,7 +1184,7 @@ def plot_correlation(data, suffix=None):
                 )
             else:
                 plt.savefig(
-                    cb.conf.image_directory
+                    cb.conf.output_directory
                     + "correlations/"
                     + feature
                     + "_correlation.png"
@@ -1203,8 +1205,10 @@ def plot_feature_permutation(data):
     """
 
     if cb.conf.save:
-        if not os.path.exists(cb.conf.image_directory + "permutation"):
-            os.makedirs(cb.conf.image_directory + "permutation")
+        if not os.path.exists(cb.conf.output_directory + "permutation"):
+            os.makedirs(
+                cb.conf.output_directory + "permutation", exist_ok=True
+            )
 
     for target in cb.conf.targets:
         tmp_data = []
@@ -1248,7 +1252,7 @@ def plot_feature_permutation(data):
         plt.tight_layout()
         if cb.conf.save:
             plt.savefig(
-                cb.conf.image_directory
+                cb.conf.output_directory
                 + "/permutation/"
                 + target.name
                 + "_permutation.png"
@@ -1286,7 +1290,7 @@ def plot_feature_permutation(data):
 
         if cb.conf.save:
             plt.savefig(
-                cb.conf.image_directory
+                cb.conf.output_directory
                 + "/permutation/"
                 + target.name
                 + "_permutation_top"

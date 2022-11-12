@@ -397,6 +397,22 @@ def compile_and_fit(train_ds, test_ds=None, max_epochs=1000):
         ensemble_size=1,
     )
 
+    if cb.conf.plot.model:
+        if cb.conf.save:
+            model_plot_path = cb.conf.output_directory
+            if cb.conf.model_name not in model_plot_path:
+                model_plot_path += cb.conf.model_name + "/"
+            if not os.path.exists(model_plot_path):
+                os.makedirs(model_plot_path, exist_ok=True)
+
+            tf.keras.utils.plot_model(
+                model,
+                to_file=model_plot_path + cb.conf.model_name + ".png",
+                rankdir="LR",
+            )
+        else:
+            tf.keras.utils.plot_model(model, rankdir="LR")
+
     if test_ds is None:
         model, history = fit(
             model,
@@ -412,19 +428,13 @@ def compile_and_fit(train_ds, test_ds=None, max_epochs=1000):
         )
 
     if cb.conf.plot.model:
-        if cb.conf.save:
-            tf.keras.utils.plot_model(
-                model,
-                to_file=cb.conf.image_directory + cb.conf.model_name + ".png",
-                rankdir="LR",
-            )
-        else:
-            tf.keras.utils.plot_model(model, rankdir="LR")
-
         cb.plots.plot_training(history)
 
     if cb.conf.save:
-        save(model, cb.conf.output_directory + "/" + cb.conf.model_name)
+        model_path = cb.conf.output_directory
+        if cb.conf.model_name not in model_path:
+            model_path += "/" + cb.conf.model_name
+        save(model, model_path)
 
     return model, history
 

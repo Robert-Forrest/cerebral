@@ -147,10 +147,6 @@ def kfolds(originalData: pd.DataFrame, save: bool = False, plot: bool = False):
         test_data = {"compositions": test_compositions, "dataset": test_ds}
 
         cb.conf.model_name = "fold_" + str(foldIndex)
-        cb.conf.image_directory = (
-            original_image_directory + cb.conf.model_name + "/"
-        )
-        os.makedirs(cb.conf.image_directory)
 
         model, history = cb.models.compile_and_fit(
             train_ds,
@@ -351,15 +347,17 @@ def kfoldsEnsemble(data: pd.DataFrame):
         )(hidden)
         outputs.append(output)
 
+    cb.conf.model_name = "ensemble"
+    os.makedirs(cb.conf.output_directory + "ensemble", exist_ok=True)
+
     model = tf.keras.Model(inputs=inputs, outputs=outputs)
     tf.keras.utils.plot_model(
         model,
-        to_file=cb.conf.image_directory + "model_ensemble.png",
+        to_file=cb.conf.output_directory + "ensemble/ensemble.png",
         rankdir="LR",
     )
 
-    learning_rate = 0.01
-    optimiser = tf.keras.optimizers.Adam(learning_rate=learning_rate)
+    optimiser = tf.keras.optimizers.Adam(learning_rate=cb.conf.learning_rate)
 
     model.compile(
         optimizer=optimiser,
@@ -375,9 +373,12 @@ def kfoldsEnsemble(data: pd.DataFrame):
         train_ds,
         max_epochs=cb.conf.train.get("max_epochs", 1000),
     )
-    cb.models.save(model, cb.conf.output_directory + "/model")
+    cb.models.save(model, cb.conf.output_directory + "/ensemble")
 
     cb.plots.plot_training(history)
-    train_predictions = cb.models.evaluate_model(
-        model, train_ds, train_labels, train_compositions=compositions
+
+    train_evaluation, metrics = cb.models.evaluate_model(
+        model,
+        train_data["dataset"],
+        train_compositions=train_data["compositions"],
     )

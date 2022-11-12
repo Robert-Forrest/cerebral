@@ -91,6 +91,8 @@ def setup(user_config: dict = {}):
             conf.output_directory = conf.model_name
 
     if hasattr(conf, "output_directory"):
+        if conf.output_directory[-1] != "/":
+            conf.output_directory += "/"
 
         if os.path.exists(conf.output_directory):
             raise FileExistsError(
@@ -99,12 +101,6 @@ def setup(user_config: dict = {}):
                 + " already exists!"
             )
         os.makedirs(conf.output_directory)
-
-        image_directory = conf.output_directory + "/figures"
-        if not os.path.exists(image_directory):
-            os.makedirs(image_directory)
-        image_directory = image_directory + "/"
-        conf.image_directory = image_directory
 
     if not hasattr(conf, "data"):
         raise Exception("No data files set!")

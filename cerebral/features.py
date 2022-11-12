@@ -98,7 +98,7 @@ def load_data(
         data = postprocess(data)
 
     if save_csv:
-        data.to_csv(data_directory + "calculated_features.csv")
+        data.to_csv(cb.conf.output_directory + "calculated_features.csv")
 
     return data
 
