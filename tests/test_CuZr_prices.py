@@ -9,37 +9,25 @@ def test_CuZr_price_model():
             "targets": [
                 {"name": "price"},
             ],
+            "training": {"max_epochs": 1000},
             "input_features": ["percentages"],
-            "data": {"files": ["tests/CuZr_prices.csv"]},
-            "plot": False,
+            "data": ["tests/CuZr_prices.csv"],
+            "plot": {"model": False, "data": False},
         }
     )
 
     data = cb.features.load_data()
 
-    model, history, train_data, test_data = cb.models.train_model(
-        data, max_epochs=1000
-    )
+    model, history, train_ds = cb.models.train_model(data, max_epochs=1000)
 
     (
-        train_predictions,
-        train_errors,
-        test_predictions,
-        test_errors,
+        train_eval,
         metrics,
-    ) = cb.models.evaluate_model(
-        model,
-        train_data["dataset"],
-        train_data["labels"],
-        test_ds=test_data["dataset"],
-        test_labels=test_data["labels"],
-        train_compositions=train_data["compositions"],
-        test_compositions=test_data["compositions"],
-    )
+    ) = cb.models.evaluate_model(model, train_ds)
 
     assert metrics["price"]["train"]["R_sq"] > 0.5
 
     alloy = "Cu100"
     prediction = cb.models.predict(model, alloy)["price"][0]
 
-    assert abs(prediction - mg.calculate(alloy, "price")) < 1.0
+    assert abs(prediction - mg.calculate(alloy, "price")) < 5.0
