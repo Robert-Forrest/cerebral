@@ -69,10 +69,11 @@ def build_input_layers(train_ds) -> list:
     :group: models
     """
 
-    return [
-        tf.keras.Input(shape=(1,), name=feature)
-        for feature in train_ds.element_spec[0]
-    ]
+    inputs = []
+    for feature in train_ds.element_spec[0]:
+        if feature != "composition":
+            inputs.append(tf.keras.Input(shape=(1,), name=feature))
+    return inputs
 
 
 def build_base_model(
