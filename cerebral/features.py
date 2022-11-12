@@ -688,7 +688,10 @@ def train_test_split(
 
 
 def df_to_dataset(
-    dataframe: pd.DataFrame, targets: List[str] = [], weights: List[float] = []
+    dataframe: pd.DataFrame,
+    targets: List[str] = [],
+    weights: List[float] = [],
+    shuffle=True,
 ):
     """Convert a pandas dataframe to a tensorflow dataset
 
@@ -732,13 +735,11 @@ def df_to_dataset(
         if cb.conf.get("train", None) is not None:
             batch_size = cb.conf.train.get("batch_size", batch_size)
 
-    dataset = (
-        dataset.shuffle(buffer_size=len(dataframe))
-        .batch(batch_size)
-        .prefetch(batch_size)
-    )
+    dataset = dataset.cache()
+    if shuffle:
+        dataset = dataset.shuffle(buffer_size=len(dataframe))
 
-    # dataset = dataset.cache()
+    dataset = dataset.batch(batch_size).prefetch(batch_size)
 
     return dataset
 
