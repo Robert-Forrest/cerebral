@@ -331,7 +331,9 @@ def calculate_features(
 
     if drop_correlated_features:
         data = drop_static_features(data, target_names, required_features)
-        data = _drop_correlated_features(data, target_names, required_features)
+        data = remove_correlated_features(
+            data, target_names, required_features
+        )
 
     return data
 
@@ -389,7 +391,7 @@ def drop_invalid_compositions(data: pd.DataFrame) -> pd.DataFrame:
     return data.drop(to_drop).reset_index(drop=True)
 
 
-def _drop_correlated_features(data, target_names, required_features):
+def remove_correlated_features(data, target_names, required_features):
     """Remove highly correlated features from the training data.
 
     :group: utils
