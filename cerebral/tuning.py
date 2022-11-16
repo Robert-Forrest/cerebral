@@ -13,8 +13,8 @@ class HyperModel(kt.HyperModel):
     :group: tuning
     """
 
-    def __init__(self, train_features):
-        self.train_features = train_features
+    def __init__(self, train_ds):
+        self.train_ds = train_ds
 
     def build(self, hp):
 
@@ -30,7 +30,7 @@ class HyperModel(kt.HyperModel):
         )
 
         model = cb.models.build_model(
-            train_features=self.train_features,
+            self.train_ds,
             num_shared_layers=num_shared_layers,
             num_specific_layers=num_specific_layers,
             units_per_layer=units_per_layer,
@@ -39,12 +39,8 @@ class HyperModel(kt.HyperModel):
 
 
 def tune(
-    train_features,
-    train_labels,
-    sampleWeight,
-    test_features=None,
-    test_labels=None,
-    sampleWeightTest=None,
+    train_ds,
+    test_ds=None,
     tuner="bayesian",
 ):
     """Perform hyperparameter tuning using kerastuner.
@@ -54,7 +50,7 @@ def tune(
 
     if tuner == "bayesian":
         tuner = kt.tuners.BayesianOptimization(
-            HyperModel(train_features),
+            HyperModel(train_ds),
             objective="loss",
             max_trials=1000,
             directory=cb.conf.output_directory + "/models",
@@ -63,7 +59,7 @@ def tune(
 
     elif tuner == "hyperband":
         tuner = kt.tuners.Hyperband(
-            HyperModel(train_features),
+            HyperModel(train_ds),
             objective="loss",
             factor=3,
             max_epochs=1000,
@@ -75,28 +71,12 @@ def tune(
     patience = 100
     min_delta = 0.01
 
-    xTrain = {}
-    for feature in train_features:
-        xTrain[feature] = train_features[feature]
-
-    yTrain = {}
-    for feature in cb.cb.conf.targets:
-        yTrain[feature] = train_labels[feature]
-
-    if test_features is not None:
-        xTest = {}
-        for feature in test_features:
-            xTest[feature] = test_features[feature]
-
-        yTest = {}
-        for feature in cb.cb.conf.targets:
-            yTest[feature] = test_labels[feature]
+    if test_ds is not None:
 
         tuner.search(
-            x=xTrain,
-            y=yTrain,
-            batch_size=cb.features.batch_size,
-            epochs=1000,
+            train_ds,
+            batch_size=cb.conf.train.get("batch_size", 256),
+            epochs=cb.conf.train.get("max_epochs", 1000),
             callbacks=[
                 tf.keras.callbacks.EarlyStopping(
                     monitor="loss",
@@ -116,17 +96,15 @@ def tune(
                 ),
             ],
             verbose=2,
-            validation_data=(xTest, yTest, sampleWeightTest),
-            sample_weight=sampleWeight,
+            validation_data=test_ds,
         )
 
     else:
 
         tuner.search(
-            x=xTrain,
-            y=yTrain,
-            batch_size=cb.features.batch_size,
-            epochs=1000,
+            train_ds,
+            batch_size=cb.conf.train.get("batch_size", 256),
+            epochs=cb.conf.train.get("max_epochs", 1000),
             callbacks=[
                 tf.keras.callbacks.EarlyStopping(
                     monitor="loss",
@@ -146,5 +124,4 @@ def tune(
                 ),
             ],
             verbose=2,
-            sample_weight=sampleWeight,
         )
