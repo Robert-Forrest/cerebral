@@ -94,7 +94,7 @@ def load_data(
             )
     data = pd.concat(data, ignore_index=True)
 
-    data = cb.features.calculate_features(
+    data, targets, input_features = calculate_features(
         data,
         drop_correlated_features=drop_correlated_features,
         model=model,
@@ -228,11 +228,13 @@ def calculate_features(
         drop_correlated_features = False
         (
             input_features,
-            target_names,
+            targets,
         ) = get_features_from_model(model)
+        target_names = [target["name"] for target in targets]
 
     else:
         input_features = cb.conf.input_features
+        targets = cb.conf.targets
         target_names = cb.conf.target_names
 
     data = drop_unwanted_inputs(data, input_features, target_names)
@@ -295,9 +297,9 @@ def calculate_features(
                     classes.append(c)
 
             if column in target_names:
-                for i in range(len(cb.conf.targets)):
-                    if cb.conf.targets[i].name == column:
-                        cb.conf.targets[i].classes = classes
+                for i in range(len(targets)):
+                    if targets[i]["name"] == column:
+                        targets[i]["classes"] = classes
 
             data[column] = (
                 data[column]
@@ -307,7 +309,7 @@ def calculate_features(
             )
 
     if merge_duplicates:
-        data = merge_duplicate_compositions(data)
+        data = merge_duplicate_compositions(data, targets, target_names)
 
     input_feature_values = {}
     for feature in input_features:
@@ -343,7 +345,7 @@ def calculate_features(
             data, target_names, required_features
         )
 
-    return data
+    return data, targets, input_features
 
 
 def drop_unwanted_inputs(
@@ -518,7 +520,9 @@ def drop_static_features(
     return data.reset_index(drop=True)
 
 
-def merge_duplicate_compositions(data: pd.DataFrame) -> pd.DataFrame:
+def merge_duplicate_compositions(
+    data: pd.DataFrame, targets: list, target_names: list
+) -> pd.DataFrame:
     """Merge duplicate composition entries by either dropping exact copies, or
     averaging the data of compositions with multiple experimental values.
 
@@ -529,6 +533,10 @@ def merge_duplicate_compositions(data: pd.DataFrame) -> pd.DataFrame:
 
     data
         Dataset of alloy compositions and properties.
+    targets
+        List of prediction targets.
+    target_names
+        List of prediction target names.
 
     """
 
@@ -581,10 +589,10 @@ def merge_duplicate_compositions(data: pd.DataFrame) -> pd.DataFrame:
                 feature_values[feature] = mask_value
                 continue
 
-            if feature in cb.conf.target_names:
+            if feature in target_names:
                 categorical_feature = False
-                for target in cb.conf.targets:
-                    if target.name == feature:
+                for target in targets:
+                    if target["name"] == feature:
                         if target["type"] == "categorical":
                             categorical_feature = True
                         break
@@ -619,11 +627,10 @@ def get_features_from_model(model):
     """
 
     targets = cb.models.get_model_prediction_features(model)
-    target_names = [target["name"] for target in targets]
 
     input_features = cb.models.get_model_input_features(model)
 
-    return input_features, target_names
+    return input_features, targets
 
 
 def train_test_split(
@@ -833,8 +840,8 @@ def create_datasets(
             num_categorical_targets += 1
 
     if num_categorical_targets == 1:
-        classes = data[categorical_target.name].unique()
-        counts = data[categorical_target.name].value_counts()
+        classes = data[categorical_target["name"]].unique()
+        counts = data[categorical_target["name"]].value_counts()
         num_samples = sum(counts)
 
         class_weights = []
@@ -845,7 +852,7 @@ def create_datasets(
                 class_weights.append(1.0)
 
         sample_weights = generate_sample_weights(
-            train_labels, categorical_target.name, class_weights
+            train_labels, categorical_target["name"], class_weights
         )
     else:
         sample_weights = [1.0] * len(train_labels)
@@ -865,7 +872,7 @@ def create_datasets(
 
         if num_categorical_targets == 1:
             sample_weights_test = generate_sample_weights(
-                test_labels, categorical_target.name, class_weights
+                test_labels, categorical_target["name"], class_weights
             )
         else:
             sample_weights_test = [1] * len(test_labels)
