@@ -39,6 +39,7 @@ def setup_units():
 
 
 def load_data(
+    datafiles: Optional[list] = None,
     drop_correlated_features: bool = True,
     model=None,
     postprocess: Callable = None,
@@ -51,6 +52,8 @@ def load_data(
     Parameters
     ----------
 
+    datafiles
+        List of data file paths to load from.
     drop_correlated_features
         If True, cull pairs of correlated features.
     model
@@ -62,8 +65,13 @@ def load_data(
 
     """
 
+    if datafiles is None:
+        datafiles = cb.conf.get("data", None)
+    if datafiles is None or len(datafiles) == 0:
+        raise ValueError("No datafiles to load!")
+
     data = []
-    for data_file in cb.conf.data:
+    for data_file in datafiles:
         raw_data = None
         if ".csv" in data_file:
             raw_data = pd.read_csv(data_file)
