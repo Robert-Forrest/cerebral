@@ -104,7 +104,7 @@ def load_data(
     data = data.fillna(cb.features.mask_value)
 
     if postprocess is not None:
-        data = postprocess(data)
+        data = postprocess(data, targets, input_features)
 
     if save_csv:
         data.to_csv(cb.conf.output_directory + "calculated_features.csv")
