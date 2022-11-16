@@ -2,6 +2,7 @@
 
 from collections.abc import Iterable
 from typing import List, Optional, Tuple, Union, Callable
+from numbers import Number
 
 import metallurgy as mg
 import numpy as np
@@ -133,8 +134,9 @@ def extract_compositions(data: pd.DataFrame) -> pd.DataFrame:
             if column not in cb.conf.target_names:
                 if column not in columns_to_drop:
                     columns_to_drop.append(column)
-                if row[column] > 0:
-                    composition[column] = row[column] / 100.0
+                if isinstance(row[column], Number):
+                    if row[column] > 0:
+                        composition[column] = row[column] / 100.0
 
         compositions.append(mg.Alloy(composition, rescale=False))
 
