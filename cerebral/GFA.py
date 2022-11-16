@@ -6,7 +6,9 @@ import pandas as pd
 import cerebral as cb
 
 
-def ensure_default_values_glass(data: pd.DataFrame) -> pd.DataFrame:
+def ensure_default_values_glass(
+    data: pd.DataFrame, targets: list, input_features: list
+) -> pd.DataFrame:
     """Postprocessing function which assigns default values to compositions
     specific to GFA modellin
 
@@ -17,14 +19,18 @@ def ensure_default_values_glass(data: pd.DataFrame) -> pd.DataFrame:
 
     data
         Data as read in by cb.features.load_data
+    targets
+        List of prediction targets.
+    input_features
+        List of input features.
 
     """
 
-    target_names = [t["name"] for t in cb.conf.targets]
+    target_names = [t["name"] for t in targets]
 
     for i, row in data.iterrows():
 
-        if "Dmax" in target_names or "Dmax" in cb.conf.input_features:
+        if "Dmax" in target_names or "Dmax" in input_features:
             try:
                 _ = data.at[i, "Dmax"]
                 hasDmax = True
@@ -33,10 +39,7 @@ def ensure_default_values_glass(data: pd.DataFrame) -> pd.DataFrame:
 
             if hasDmax:
                 if not np.isnan(data.at[i, "Dmax"]):
-                    if (
-                        "GFA" in target_names
-                        or "GFA" in cb.conf.input_features
-                    ):
+                    if "GFA" in target_names or "GFA" in input_features:
                         if row["Dmax"] == 0:
                             data.at[i, "GFA"] = 0
                         elif row["Dmax"] <= 0.15:
@@ -49,7 +52,7 @@ def ensure_default_values_glass(data: pd.DataFrame) -> pd.DataFrame:
             else:
                 data.at[i, "Dmax"] = cb.features.mask_value
 
-        if "GFA" in target_names or "GFA" in cb.conf.input_features:
+        if "GFA" in target_names or "GFA" in input_features:
             try:
                 _ = data.at[i, "GFA"]
                 hasGFA = True
@@ -82,9 +85,7 @@ def ensure_default_values_glass(data: pd.DataFrame) -> pd.DataFrame:
         if (
             "Tx" in row
             and "Tg" in row
-            and (
-                "deltaT" in target_names or "deltaT" in cb.conf.input_features
-            )
+            and ("deltaT" in target_names or "deltaT" in input_features)
         ):
             if (
                 not np.isnan(row["Tx"])
