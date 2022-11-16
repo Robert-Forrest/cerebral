@@ -815,27 +815,23 @@ def predict(model, alloys, uncertainty=False):
     :group: models
     """
 
-    prediction_features = get_model_prediction_features(model)
-
-    data = cb.features.calculate_features(
+    data, targets, input_features = cb.features.calculate_features(
         alloys,
         model=model,
         merge_duplicates=False,
         drop_correlated_features=False,
     )
     data.pop("composition")
-    inputs = cb.features.df_to_dataset(
-        data, prediction_features, shuffle=False
-    )
+    inputs = cb.features.df_to_dataset(data, targets, shuffle=False)
 
     if uncertainty:
-        collected_predictions = {f["name"]: [] for f in prediction_features}
-        predictions = {f["name"]: [] for f in prediction_features}
+        collected_predictions = {f["name"]: [] for f in targets}
+        predictions = {f["name"]: [] for f in targets}
         for i in range(5):
             current_predictions = extract_predictions_training(
                 model,
                 inputs,
-                prediction_features,
+                targets,
             )
             for feature in collected_predictions:
                 collected_predictions[feature].append(
@@ -856,7 +852,7 @@ def predict(model, alloys, uncertainty=False):
     else:
         return extract_predictions(
             model.predict(inputs),
-            prediction_features,
+            targets,
         )
 
 
