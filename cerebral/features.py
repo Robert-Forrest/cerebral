@@ -752,7 +752,7 @@ def df_to_dataset(
     else:
         dataset = tf.data.Dataset.from_tensor_slices(dict(dataframe))
 
-    batch_size = cb.conf.get("batch_size", 256)
+    batch_size = 256
     if cb.conf:
         if cb.conf.get("train", None) is not None:
             batch_size = cb.conf.train.get("batch_size", batch_size)
