@@ -81,7 +81,7 @@ def setup(user_config: dict = {}):
     if not hasattr(conf.plot, "model"):
         conf.plot.model = True
     if not hasattr(conf.plot, "features"):
-        conf.plot.model = False
+        conf.plot.features = False
 
     if not hasattr(conf, "save"):
         conf.save = False
