@@ -86,7 +86,7 @@ def write_errors(compositions, labels, predictions, suffix=None):
 
         results_file_path = cb.conf.output_directory
         if cb.conf.model_name not in results_file_path:
-            results_file_path += "/" + cb.conf.model_name
+            results_file_path += "/" + cb.conf.model_name + "/"
 
         results_file_path += target_name + "/" + target_name + "_error"
 
@@ -631,7 +631,7 @@ def plot_results_classification(
 
                 image_path = cb.conf.output_directory
                 if cb.conf.model_name not in image_path:
-                    image_path += cb.conf.model_name
+                    image_path += cb.conf.model_name + "/"
                 plot_multiclass_roc(
                     labels, raw_predictions, target_name, set_name, image_path
                 )
