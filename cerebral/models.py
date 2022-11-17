@@ -844,9 +844,32 @@ def predict(model, alloys, uncertainty=False):
                     alloy_predictions.append(
                         collected_predictions[feature][j][i]
                     )
-                predictions[feature].append(
-                    (np.mean(alloy_predictions), np.std(alloy_predictions))
-                )
+
+                if isinstance(alloy_predictions[0], tf.Tensor):
+                    for j in range(len(alloy_predictions)):
+                        alloy_predictions[j] = alloy_predictions[j].numpy()
+
+                if isinstance(alloy_predictions[0], (list, np.ndarray)):
+                    per_class_predictions = []
+                    for j in range(len(alloy_predictions[0])):
+                        per_class_predictions.append([])
+                        for i in range(len(alloy_predictions)):
+                            per_class_predictions[j].append(
+                                alloy_predictions[i][j]
+                            )
+
+                    average = []
+                    std = []
+                    for j in range(len(alloy_predictions[0])):
+                        average.append(np.mean(per_class_predictions[j]))
+                        std.append(np.std(per_class_predictions[j]))
+
+                    predictions[feature].append((average, std))
+
+                else:
+                    predictions[feature].append(
+                        (np.mean(alloy_predictions), np.std(alloy_predictions))
+                    )
 
         return predictions
     else:
