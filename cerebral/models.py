@@ -375,15 +375,15 @@ def compile_and_fit(train_ds, test_ds=None, max_epochs=1000):
 
     model = build_model(
         train_ds,
-        num_shared_layers=3,
-        num_specific_layers=5,
-        units_per_layer=64,
-        regularizer="l2",
-        regularizer_rate=0.001,
-        dropout=cb.conf.get("dropout", 0.3),
-        learning_rate=cb.conf.get("learning_rate", 0.01),
-        activation="relu",
-        max_norm=3.0,
+        num_shared_layers=cb.conf.train.get("num_shared_layers", 3),
+        num_specific_layers=cb.conf.train.get("num_specific_layers", 5),
+        units_per_layer=cb.conf.train.get("units_per_layer", 64),
+        regularizer=cb.conf.train.get("regularizer", "l2"),
+        regularizer_rate=cb.conf.train.get("regularizer_rate", 0.0001),
+        dropout=cb.conf.train.get("dropout", 0.3),
+        learning_rate=cb.conf.train.get("learning_rate", 0.01),
+        activation=cb.conf.train.get("activation", "relu"),
+        max_norm=cb.conf.train.get("max_norm", 3.0),
         ensemble_size=1,
     )
 
