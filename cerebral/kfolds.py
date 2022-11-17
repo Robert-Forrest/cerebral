@@ -133,16 +133,9 @@ def kfolds(data: pd.DataFrame, save: bool = False, plot: bool = False):
         train_tmp = folds[foldIndex][0]
         test_tmp = folds[foldIndex][1]
 
-        train_compositions = train_tmp.pop("composition")
-        test_compositions = test_tmp.pop("composition")
-
         train_ds, test_ds = cb.features.create_datasets(
             data, cb.conf.targets, train=train_tmp, test=test_tmp
         )
-
-        train_data = {"compositions": train_compositions, "dataset": train_ds}
-
-        test_data = {"compositions": test_compositions, "dataset": test_ds}
 
         cb.conf.model_name = "fold_" + str(foldIndex)
 
@@ -155,13 +148,7 @@ def kfolds(data: pd.DataFrame, save: bool = False, plot: bool = False):
             train_evaluation,
             test_evaluation,
             metrics,
-        ) = cb.models.evaluate_model(
-            model,
-            train_data["dataset"],
-            test_ds=test_data["dataset"],
-            train_compositions=train_data["compositions"],
-            test_compositions=test_data["compositions"],
-        )
+        ) = cb.models.evaluate_model(model, train_ds, test_ds=test_ds)
 
         fold_test_truth.append(test_evaluation["truth"])
         fold_test_predictions.append(test_evaluation["predictions"])
@@ -294,10 +281,7 @@ def kfoldsEnsemble(data: pd.DataFrame):
 
     kfolds(data, save=True, plot=True)
 
-    compositions = data.pop("composition")
-
     train_ds = cb.features.create_datasets(data, cb.conf.targets)
-    train_data = {"compositions": compositions, "dataset": train_ds}
 
     inputs = cb.models.build_input_layers(train_ds)
     outputs = []
@@ -348,7 +332,9 @@ def kfoldsEnsemble(data: pd.DataFrame):
         rankdir="LR",
     )
 
-    optimiser = tf.keras.optimizers.Adam(learning_rate=cb.conf.learning_rate)
+    optimiser = tf.keras.optimizers.Adam(
+        learning_rate=cb.conf.train.get("learning_rate", 0.01)
+    )
 
     model.compile(
         optimizer=optimiser,
@@ -368,8 +354,4 @@ def kfoldsEnsemble(data: pd.DataFrame):
 
     cb.plots.plot_training(history)
 
-    train_evaluation, metrics = cb.models.evaluate_model(
-        model,
-        train_data["dataset"],
-        train_compositions=train_data["compositions"],
-    )
+    train_evaluation, metrics = cb.models.evaluate_model(model, train_ds)
