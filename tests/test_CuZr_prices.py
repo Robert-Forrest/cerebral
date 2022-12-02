@@ -27,7 +27,7 @@ def test_CuZr_price_model():
         metrics,
     ) = cb.models.evaluate_model(model, train_ds)
 
-    assert metrics["price"]["train"]["R_sq"] > 0.5
+    assert metrics["price"]["train"]["RMSE"] < 10
 
     alloy = "Cu100"
     prediction = cb.models.predict(model, alloy)["price"][0]
