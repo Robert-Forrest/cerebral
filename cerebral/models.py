@@ -158,8 +158,6 @@ def build_feature_branch(
             if dropout > 0:
                 if i < num_layers - 1:
                     x = tf.keras.layers.Dropout(dropout)(x)
-                else:
-                    x = tf.keras.layers.Dropout(dropout / 5)(x)
 
         if feature.type == "categorical":
             if ensemble_size > 1:
@@ -440,7 +438,7 @@ def fit(
     :group: models
     """
 
-    patience = min(max(max_epochs // 4, 1), 100)
+    patience = min(500, max(max_epochs // 3, 1))
     min_delta = 0.001
 
     reduce_lr_patience = patience // 3
@@ -821,13 +819,14 @@ def predict(model, alloys, uncertainty=False):
         merge_duplicates=False,
         drop_correlated_features=False,
     )
+
     data.pop("composition")
     inputs = cb.features.df_to_dataset(data, targets, shuffle=False)
 
     if uncertainty:
         collected_predictions = {f["name"]: [] for f in targets}
         predictions = {f["name"]: [] for f in targets}
-        for i in range(5):
+        for i in range(100):
             current_predictions = extract_predictions_training(
                 model,
                 inputs,
@@ -859,12 +858,16 @@ def predict(model, alloys, uncertainty=False):
                             )
 
                     average = []
-                    std = []
+                    CI = []
                     for j in range(len(alloy_predictions[0])):
                         average.append(np.mean(per_class_predictions[j]))
-                        std.append(np.std(per_class_predictions[j]))
+                        CI.append(
+                            1.96
+                            * np.std(per_class_predictions[j])
+                            / np.sqrt(len(per_class_predictions[j]))
+                        )
 
-                    predictions[feature].append((average, std))
+                    predictions[feature].append((average, CI))
 
                 else:
                     predictions[feature].append(
