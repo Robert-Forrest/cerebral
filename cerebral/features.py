@@ -131,7 +131,7 @@ def extract_compositions(data: pd.DataFrame) -> pd.DataFrame:
     for _, row in data.iterrows():
         composition = {}
         for column in data.columns:
-            if column not in cb.conf.target_names:
+            if column in mg.periodic_table.elements:
                 if column not in columns_to_drop:
                     columns_to_drop.append(column)
                 if isinstance(row[column], Number):
@@ -214,15 +214,26 @@ def calculate_features(
         if not isinstance(data, Iterable) or isinstance(data, (str, dict)):
             data = [data]
 
+        alloys = []
+        for alloy in data:
+            if not isinstance(alloy, mg.Alloy):
+                alloys.append(mg.Alloy(alloy, rescale=False))
+            else:
+                alloys.append(alloy)
+
         data = pd.DataFrame(
-            [mg.Alloy(composition, rescale=False) for composition in data],
+            alloys,
             columns=["composition"],
         )
     else:
-        data["composition"] = [
-            mg.Alloy(row["composition"], rescale=False)
-            for _, row in data.iterrows()
-        ]
+        alloys = []
+        for i, row in data.iterrows():
+            if not isinstance(row["composition"], mg.Alloy):
+                alloys.append(mg.Alloy(row["composition"], rescale=False))
+            else:
+                alloys.append(row["composition"])
+
+        data["composition"] = alloys
 
     data = drop_invalid_compositions(data)
 
@@ -445,23 +456,10 @@ def remove_correlated_features(data, target_names, required_features):
                         if sum(np.abs(correlation[i])) < sum(
                             np.abs(correlation[j])
                         ):
-                            # print(
-                            #     data.columns[j],
-                            #     sum(np.abs(correlation[j])),
-                            #     "beats",
-                            #     data.columns[i],
-                            #     sum(np.abs(correlation[i])),
-                            # )
+
                             correlated_dropped_features.append(data.columns[i])
                             break
 
-                        # print(
-                        #     data.columns[i],
-                        #     sum(np.abs(correlation[i])),
-                        #     "beats",
-                        #     data.columns[j],
-                        #     sum(np.abs(correlation[j])),
-                        # )
                         correlated_dropped_features.append(data.columns[j])
 
     for feature in correlated_dropped_features:
