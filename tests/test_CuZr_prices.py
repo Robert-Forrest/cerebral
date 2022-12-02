@@ -9,7 +9,7 @@ def test_CuZr_price_model():
             "targets": [
                 {"name": "price"},
             ],
-            "training": {"max_epochs": 1000},
+            "training": {"max_epochs": 2000},
             "input_features": ["percentages"],
             "data": ["tests/CuZr_prices.csv"],
             "plot": {"model": False, "data": False},
