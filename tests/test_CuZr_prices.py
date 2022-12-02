@@ -9,17 +9,17 @@ def test_CuZr_price_model():
             "targets": [
                 {"name": "price"},
             ],
-            "training": {"max_epochs": 2000},
+            "train": {"max_epochs": 100, "dropout": 0.0, "max_norm": 3},
             "input_features": ["percentages"],
             "data": ["tests/CuZr_prices.csv"],
             "plot": {"model": False, "data": False},
         }
     )
 
-    data = cb.features.load_data()
+    data = cb.features.load_data(drop_correlated_features=False)
 
     model, history, train_ds = cb.models.train_model(
-        data, max_epochs=2000, early_stop=False
+        data, max_epochs=1000, early_stop=False
     )
 
     (
