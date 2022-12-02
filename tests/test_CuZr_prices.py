@@ -18,7 +18,9 @@ def test_CuZr_price_model():
 
     data = cb.features.load_data()
 
-    model, history, train_ds = cb.models.train_model(data, max_epochs=1000)
+    model, history, train_ds = cb.models.train_model(
+        data, max_epochs=2000, early_stop=False
+    )
 
     (
         train_eval,

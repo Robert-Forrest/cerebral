@@ -327,7 +327,7 @@ def load(path):
     )
 
 
-def train_model(data, max_epochs=1000):
+def train_model(data, max_epochs=1000, early_stop=True):
 
     max_epochs = cb.conf.train.get("max_epochs", max_epochs)
 
@@ -345,6 +345,7 @@ def train_model(data, max_epochs=1000):
             train_ds,
             test_ds=test_ds,
             max_epochs=max_epochs,
+            early_stop=early_stop,
         )
 
         return model, history, train_ds, test_ds
@@ -356,14 +357,13 @@ def train_model(data, max_epochs=1000):
         )
 
         model, history = compile_and_fit(
-            train_ds,
-            max_epochs=max_epochs,
+            train_ds, max_epochs=max_epochs, early_stop=early_stop
         )
 
         return model, history, train_ds
 
 
-def compile_and_fit(train_ds, test_ds=None, max_epochs=1000):
+def compile_and_fit(train_ds, test_ds=None, max_epochs=1000, early_stop=True):
     """Compile a model, and perform training.
 
     :group: models
@@ -403,9 +403,7 @@ def compile_and_fit(train_ds, test_ds=None, max_epochs=1000):
 
     if test_ds is None:
         model, history = fit(
-            model,
-            train_ds,
-            max_epochs=max_epochs,
+            model, train_ds, max_epochs=max_epochs, early_stop=early_stop
         )
     else:
         model, history = fit(
@@ -413,6 +411,7 @@ def compile_and_fit(train_ds, test_ds=None, max_epochs=1000):
             train_ds,
             test_ds=test_ds,
             max_epochs=max_epochs,
+            early_stop=early_stop,
         )
 
     if cb.conf.plot.model:
@@ -427,12 +426,7 @@ def compile_and_fit(train_ds, test_ds=None, max_epochs=1000):
     return model, history
 
 
-def fit(
-    model,
-    train_ds,
-    test_ds=None,
-    max_epochs=1000,
-):
+def fit(model, train_ds, test_ds=None, max_epochs=1000, early_stop=True):
     """Perform training of a model to data.
 
     :group: models
@@ -448,27 +442,32 @@ def fit(
     if test_ds is not None:
         monitor = "val_loss"
 
-    history = model.fit(
-        train_ds,
-        batch_size=cb.conf.train.get("batch_size", 1024),
-        epochs=max_epochs,
-        callbacks=[
+    callbacks = [
+        tf.keras.callbacks.ReduceLROnPlateau(
+            monitor=monitor,
+            factor=0.5,
+            patience=reduce_lr_patience,
+            mode="auto",
+            min_delta=min_delta * 10,
+            cooldown=reduce_lr_patience // 2,
+        ),
+    ]
+    if early_stop:
+        callbacks.append(
             tf.keras.callbacks.EarlyStopping(
                 monitor=monitor,
                 patience=early_stop_patience,
                 min_delta=min_delta,
                 mode="auto",
                 restore_best_weights=True,
-            ),
-            tf.keras.callbacks.ReduceLROnPlateau(
-                monitor=monitor,
-                factor=0.5,
-                patience=reduce_lr_patience,
-                mode="auto",
-                min_delta=min_delta * 10,
-                cooldown=reduce_lr_patience // 2,
-            ),
-        ],
+            )
+        )
+
+    history = model.fit(
+        train_ds,
+        batch_size=cb.conf.train.get("batch_size", 1024),
+        epochs=max_epochs,
+        callbacks=callbacks,
         validation_data=test_ds,
         verbose=2,
     )
