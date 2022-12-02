@@ -36,7 +36,12 @@ def kfolds_split(
     unique_composition_spaces = {}
     for _, row in data.iterrows():
         composition = mg.alloy.parse_composition(row["composition"])
-        sorted_composition = sorted(list(composition.keys()))
+        elements = []
+        for element in composition:
+            if composition[element] > 0.02:
+                elements.append(element)
+
+        sorted_composition = sorted(elements)
         composition_space = "".join(sorted_composition)
 
         if composition_space not in unique_composition_spaces:
@@ -292,10 +297,9 @@ def kfoldsEnsemble(data: pd.DataFrame):
     submodel_outputs = []
     for k in range(num_folds):
         submodel = cb.models.load(cb.conf.output_directory + "/fold_" + str(k))
-        submodel._name = "ensemble_" + str(k)
+        submodel._name = "fold_" + str(k)
         for layer in submodel.layers:
             layer.trainable = False
-            # layer._name = "ensemble_" + str(k) + "_" + layer.name
 
         submodel_outputs.append(submodel(inputs))
 
@@ -307,7 +311,9 @@ def kfoldsEnsemble(data: pd.DataFrame):
         else:
             submodels_merged = tf.keras.layers.Concatenate()(submodel_outputs)
 
-        hidden = tf.keras.layers.Dense(64, activation="relu")(submodels_merged)
+        hidden = tf.keras.layers.Dense(
+            64, activation=cb.conf.train.get("activation", "relu")
+        )(submodels_merged)
 
         output = None
         if cb.conf.targets[i]["type"] == "categorical":
@@ -348,7 +354,7 @@ def kfoldsEnsemble(data: pd.DataFrame):
     model, history = cb.models.fit(
         model,
         train_ds,
-        max_epochs=cb.conf.train.get("max_epochs", 1000),
+        max_epochs=2000,
     )
     cb.models.save(model, cb.conf.output_directory + "/ensemble")
 
