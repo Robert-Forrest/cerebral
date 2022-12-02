@@ -18,6 +18,7 @@ from . import permutation
 from . import plots
 from . import tuning
 from . import GFA
+from .novelty import novelty
 
 __all__ = [
     "features",
@@ -30,6 +31,7 @@ __all__ = [
     "plots",
     "tuning",
     "GFA",
+    "novelty",
 ]
 
 conf = OmegaConf.create({})
