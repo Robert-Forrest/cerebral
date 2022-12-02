@@ -39,89 +39,59 @@ class HyperModel(kt.HyperModel):
 
 
 def tune(
-    train_ds,
-    test_ds=None,
-    tuner="bayesian",
+    data,
+    tuner="hyperband",
 ):
     """Perform hyperparameter tuning using kerastuner.
 
     :group: tuning
     """
 
-    if tuner == "bayesian":
-        tuner = kt.tuners.BayesianOptimization(
-            HyperModel(train_ds),
-            objective="loss",
-            max_trials=1000,
-            directory=cb.conf.output_directory + "/models",
-            project_name="GFA",
-        )
+    train_ds = cb.features.create_datasets(data, targets=cb.conf.targets)
 
-    elif tuner == "hyperband":
+    if tuner == "hyperband":
         tuner = kt.tuners.Hyperband(
             HyperModel(train_ds),
             objective="loss",
             factor=3,
-            max_epochs=1000,
-            hyperband_iterations=1,
-            directory=cb.conf.output_directory + "/models",
+            max_epochs=cb.conf.train.get("max_epochs", 1000),
+            hyperband_iterations=5,
+            directory=cb.conf.output_directory + "/tuning",
+            project_name="GFA",
+        )
+    elif tuner == "bayesian":
+        tuner = kt.tuners.BayesianOptimization(
+            HyperModel(train_ds),
+            objective="loss",
+            max_trials=1000,
+            directory=cb.conf.output_directory + "/tuning",
             project_name="GFA",
         )
 
     patience = 100
     min_delta = 0.01
 
-    if test_ds is not None:
-
-        tuner.search(
-            train_ds,
-            batch_size=cb.conf.train.get("batch_size", 256),
-            epochs=cb.conf.train.get("max_epochs", 1000),
-            callbacks=[
-                tf.keras.callbacks.EarlyStopping(
-                    monitor="loss",
-                    patience=patience,
-                    min_delta=min_delta,
-                    mode="auto",
-                    restore_best_weights=True,
-                ),
-                tf.keras.callbacks.ReduceLROnPlateau(
-                    monitor="loss",
-                    factor=0.75,
-                    patience=patience // 3,
-                    mode="auto",
-                    min_delta=min_delta * 10,
-                    cooldown=patience // 4,
-                    min_lr=0,
-                ),
-            ],
-            verbose=2,
-            validation_data=test_ds,
-        )
-
-    else:
-
-        tuner.search(
-            train_ds,
-            batch_size=cb.conf.train.get("batch_size", 256),
-            epochs=cb.conf.train.get("max_epochs", 1000),
-            callbacks=[
-                tf.keras.callbacks.EarlyStopping(
-                    monitor="loss",
-                    patience=patience,
-                    min_delta=min_delta,
-                    mode="auto",
-                    restore_best_weights=True,
-                ),
-                tf.keras.callbacks.ReduceLROnPlateau(
-                    monitor="loss",
-                    factor=0.75,
-                    patience=patience // 3,
-                    mode="auto",
-                    min_delta=min_delta * 10,
-                    cooldown=patience // 4,
-                    min_lr=0,
-                ),
-            ],
-            verbose=2,
-        )
+    tuner.search(
+        train_ds,
+        batch_size=cb.conf.train.get("batch_size", 256),
+        epochs=cb.conf.train.get("max_epochs", 1000),
+        callbacks=[
+            tf.keras.callbacks.EarlyStopping(
+                monitor="loss",
+                patience=patience,
+                min_delta=min_delta,
+                mode="auto",
+                restore_best_weights=True,
+            ),
+            tf.keras.callbacks.ReduceLROnPlateau(
+                monitor="loss",
+                factor=0.75,
+                patience=patience // 3,
+                mode="auto",
+                min_delta=min_delta * 10,
+                cooldown=patience // 4,
+                min_lr=0,
+            ),
+        ],
+        verbose=2,
+    )
