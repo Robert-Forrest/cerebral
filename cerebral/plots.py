@@ -123,17 +123,18 @@ def write_errors(compositions, labels, predictions, suffix=None):
                 )
 
 
-def gather_labelled_errors(labels, predictions, compositions, errors):
+def gather_labelled_errors(truths, predictions, compositions, errors):
     labelled_errors = []
-    errors = list(errors)
-    top_errors = sorted(errors, reverse=True)[:3]
-    for e in top_errors:
-        index = errors.index(e)
+    if not isinstance(errors, list):
+        errors = list(errors)
+
+    top_error_indices = np.argpartition(np.abs(errors), -3)[-3:]
+    for i in top_error_indices:
         labelled_errors.append(
             [
-                labels[index],
-                predictions[index],
-                compositions[index],
+                truths[i],
+                predictions[i],
+                compositions[i],
             ]
         )
     return labelled_errors
@@ -148,8 +149,6 @@ def plot_results_regression(
     test_errors=None,
     train_compositions=None,
     test_compositions=None,
-    train_errorbars=None,
-    test_errorbars=None,
     metrics=None,
 ):
     """Plot true versus prediction for regression outputs.
@@ -174,10 +173,6 @@ def plot_results_regression(
             _, masked_train_compositions = cb.features.filter_masked(
                 train_truth[target_name], train_compositions
             )
-        if train_errorbars is not None:
-            _, masked_train_errorbars = cb.features.filter_masked(
-                train_truth[target_name], train_errorbars[target_name]
-            )
 
         _, masked_train_errors = cb.features.filter_masked(
             train_truth[target_name], train_errors[target_name]
@@ -193,10 +188,6 @@ def plot_results_regression(
             if test_compositions is not None:
                 _, masked_test_compositions = cb.features.filter_masked(
                     test_truth[target_name], test_compositions
-                )
-            if test_errorbars is not None:
-                _, masked_test_errorbars = cb.features.filter_masked(
-                    test_truth[target_name], test_errorbars[target_name]
                 )
 
             _, masked_test_errors = cb.features.filter_masked(
@@ -227,57 +218,33 @@ def plot_results_regression(
         fig, ax = plt.subplots(figsize=(5, 5))
         # plt.grid(alpha=.4)
 
-        if train_errorbars is not None:
-            ax.errorbar(
+        if test_truth is not None:
+            ax.scatter(
                 masked_train_truth,
                 masked_train_predictions,
-                yerr=masked_train_errorbars,
-                fmt="rx",
-                ms=5,
+                label="Train",
+                s=5,
                 alpha=0.8,
-                capsize=1,
-                elinewidth=0.75,
+                marker="x",
             )
         else:
-            if test_truth is not None:
-                ax.scatter(
-                    masked_train_truth,
-                    masked_train_predictions,
-                    label="Train",
-                    s=5,
-                    alpha=0.8,
-                    marker="x",
-                )
-            else:
-                ax.scatter(
-                    masked_train_truth,
-                    masked_train_predictions,
-                    s=10,
-                    alpha=0.8,
-                    marker="x",
-                )
+            ax.scatter(
+                masked_train_truth,
+                masked_train_predictions,
+                s=10,
+                alpha=0.8,
+                marker="x",
+            )
 
         if test_truth is not None:
-            if test_errorbars is not None:
-                ax.errorbar(
-                    masked_test_truth,
-                    masked_test_predictions,
-                    yerr=masked_test_errorbars,
-                    fmt="bx",
-                    ms=5,
-                    alpha=0.8,
-                    capsize=1,
-                    elinewidth=0.75,
-                )
-            else:
-                ax.scatter(
-                    masked_test_truth,
-                    masked_test_predictions,
-                    label="Test",
-                    s=10,
-                    alpha=0.8,
-                    marker="o",
-                )
+            ax.scatter(
+                masked_test_truth,
+                masked_test_predictions,
+                label="Test",
+                s=10,
+                alpha=0.8,
+                marker="x",
+            )
 
             min_point = np.min(
                 [np.min(masked_train_truth), np.min(masked_test_truth)]
@@ -470,7 +437,7 @@ def plot_results_regression_heatmap(train_truth, train_predictions):
             min_point = np.Inf
             max_point = -np.Inf
 
-            labels = []
+            truths = []
             predictions = []
 
             for j in range(len(train_truth)):
@@ -482,20 +449,20 @@ def plot_results_regression_heatmap(train_truth, train_predictions):
                 MAEs.append(cb.metrics.calc_MAE(t, p))
                 RMSEs.append(cb.metrics.calc_RMSE(t, p))
 
-                labels.extend(t)
+                truths.extend(t)
                 predictions.extend(p)
 
             extent = [
-                np.min(labels),
-                np.max(labels),
+                np.min(truths),
+                np.max(truths),
                 np.min(predictions),
                 np.max(predictions),
             ]
 
-            # labels = np.ma.masked_where(labels == 0, labels)
+            # truths = np.ma.masked_where(truths == 0, truths)
             # predictions = np.ma.masked_where(predictions == 0, predictions)
 
-            hist, xbins, ybins = np.histogram2d(labels, predictions, bins=30)
+            hist, xbins, ybins = np.histogram2d(truths, predictions, bins=30)
 
             cmap = mpl.cm.get_cmap("viridis").copy()
             cmap.set_bad(color="white")
@@ -513,8 +480,8 @@ def plot_results_regression_heatmap(train_truth, train_predictions):
                 norm=mpl.colors.LogNorm(),
             )
 
-            min_point = np.min(labels)
-            max_point = np.max(labels)
+            min_point = np.min(truths)
+            max_point = np.max(truths)
 
             lims = [min_point - 0.1 * min_point, max_point + 0.1 * min_point]
             plt.plot(lims, lims, "--k")
@@ -562,15 +529,8 @@ def plot_results_regression_heatmap(train_truth, train_predictions):
             plt.tight_layout()
             if cb.conf.save:
                 image_path = cb.conf.output_directory
-                if cb.conf.model_name not in image_path:
-                    image_path += cb.conf.model_name
                 plt.savefig(
-                    image_path
-                    + "/"
-                    + feature
-                    + "/"
-                    + feature
-                    + "_TrueVsPredicted_heatmap.png"
+                    image_path + "/" + feature + "_TrueVsPredicted_heatmap.png"
                 )
             else:
                 plt.show()
@@ -624,16 +584,16 @@ def plot_results_classification(
 
                 if set_name == "train":
                     raw_predictions = masked_train_predictions
-                    labels = masked_train_truth
+                    truths = masked_train_truth
                 else:
                     raw_predictions = masked_test_predictions
-                    labels = masked_test_truth
+                    truths = masked_test_truth
 
                 image_path = cb.conf.output_directory
                 if cb.conf.model_name not in image_path:
                     image_path += cb.conf.model_name + "/"
                 plot_multiclass_roc(
-                    labels, raw_predictions, target_name, set_name, image_path
+                    truths, raw_predictions, target_name, set_name, image_path
                 )
 
                 predictions = []
@@ -644,9 +604,9 @@ def plot_results_classification(
                 ax = fig.add_subplot()
                 plt.grid(False)
 
-                confusion = confusion_matrix(labels, predictions)
+                confusion = confusion_matrix(truths, predictions)
                 confusionPlot = ConfusionMatrixDisplay(
-                    confusion_matrix=confusion, display_labels=classes
+                    confusion_matrix=confusion, display_truths=classes
                 )
                 confusionPlot.plot(colorbar=False, cmap=plt.cm.Blues, ax=ax)
                 ax.set_xlabel("Predicted class")
@@ -666,8 +626,8 @@ def plot_results_classification(
                     fp = 0
                     tn = 0
                     fn = 0
-                    for i in range(len(labels)):
-                        if labels[i] == c:
+                    for i in range(len(truths)):
+                        if truths[i] == c:
                             p += 1
                             if predictions[i] == c:
                                 tp += 1
@@ -678,11 +638,11 @@ def plot_results_classification(
 
                         if predictions[i] == c:
                             pp += 1
-                            if labels[i] != c:
+                            if truths[i] != c:
                                 fp += 1
                         else:
                             pn += 1
-                            if labels[i] == c:
+                            if truths[i] == c:
                                 fn += 1
 
                     accuracy = (tp + tn) / (p + n)
@@ -746,26 +706,26 @@ def plot_results_classification(
                 plt.title(
                     "Accuracy: "
                     + str(
-                        round(cb.metrics.calc_accuracy(labels, predictions), 3)
+                        round(cb.metrics.calc_accuracy(truths, predictions), 3)
                     )
                     + " Recall: "
                     + str(
-                        round(cb.metrics.calc_recall(labels, predictions), 3)
+                        round(cb.metrics.calc_recall(truths, predictions), 3)
                     )
                     + " Precision: "
                     + str(
                         round(
-                            cb.metrics.calc_precision(labels, predictions), 3
+                            cb.metrics.calc_precision(truths, predictions), 3
                         )
                     )
                     + "\nSpecificity: "
                     + str(round(np.mean(specificities), 3))
                     + " F1: "
-                    + str(round(cb.metrics.calc_f1(labels, predictions), 3))
+                    + str(round(cb.metrics.calc_f1(truths, predictions), 3))
                     + "\nInformedness: "
                     + str(
                         round(
-                            cb.metrics.calc_recall(labels, predictions)
+                            cb.metrics.calc_recall(truths, predictions)
                             + np.mean(specificities)
                             - 1,
                             3,
