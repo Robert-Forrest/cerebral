@@ -589,11 +589,8 @@ def plot_results_classification(
                     raw_predictions = masked_test_predictions
                     truths = masked_test_truth
 
-                image_path = cb.conf.output_directory
-                if cb.conf.model_name not in image_path:
-                    image_path += cb.conf.model_name + "/"
                 plot_multiclass_roc(
-                    truths, raw_predictions, target_name, set_name, image_path
+                    truths, raw_predictions, target_name, set_name
                 )
 
                 predictions = []
@@ -606,7 +603,7 @@ def plot_results_classification(
 
                 confusion = confusion_matrix(truths, predictions)
                 confusionPlot = ConfusionMatrixDisplay(
-                    confusion_matrix=confusion, display_truths=classes
+                    confusion_matrix=confusion, display_labels=classes
                 )
                 confusionPlot.plot(colorbar=False, cmap=plt.cm.Blues, ax=ax)
                 ax.set_xlabel("Predicted class")
@@ -761,7 +758,7 @@ def plot_results_classification(
         i += 1
 
 
-def plot_multiclass_roc(true, pred, feature_name, set_name, image_directory):
+def plot_multiclass_roc(true, pred, feature_name, set_name):
     """Plot a reciever-operator characteristic graph for multiple classes.
 
     :group: plots
@@ -808,9 +805,10 @@ def plot_multiclass_roc(true, pred, feature_name, set_name, image_directory):
     plt.tight_layout()
 
     if cb.conf.save:
-        plt.savefig(
-            image_directory + feature_name + "/ROC_" + set_name + ".png"
-        )
+        image_path = cb.conf.output_directory
+        if cb.conf.model_name not in image_path:
+            image_path += cb.conf.model_name + "/"
+        plt.savefig(image_path + feature_name + "/ROC_" + set_name + ".png")
     else:
         plt.show()
 
