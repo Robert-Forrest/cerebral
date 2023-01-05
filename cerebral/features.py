@@ -77,7 +77,7 @@ def load_data(
         datafiles = cb.conf.get("data", None)
     if datafiles is None or len(datafiles) == 0:
         raise ValueError("No datafiles to load!")
-    if not isinstance(datafiles, list):
+    if isinstance(datafiles, str):
         datafiles = [datafiles]
 
     data = []
