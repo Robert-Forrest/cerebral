@@ -771,7 +771,7 @@ def df_to_dataset(
     return dataset
 
 
-def generate_sample_weights(
+def generate_sample_weights_categorical(
     samples: pd.DataFrame, class_feature: str, class_weights: List[float]
 ) -> np.array:
     """Based on per-class weights, generate per-sample weights.
@@ -803,6 +803,68 @@ def generate_sample_weights(
     return np.array(sample_weights)
 
 
+def generate_sample_weights_numerical(labels, numerical_feature):
+    return np.abs(np.abs(labels[numerical_feature]))
+
+
+def split_labels_features(data, targets):
+    features = data.copy()
+
+    labels = {}
+    for feature in targets:
+        if feature["name"] in features:
+            labels[feature["name"]] = features.pop(feature["name"])
+    labels = pd.DataFrame(labels)
+    return features, labels
+
+
+def generate_sample_weights(data, labels, targets, class_weights=None):
+    num_categorical_targets = 0
+    num_regression_targets = 0
+    categorical_target = None
+    for target in targets:
+        if target.type == "categorical":
+            categorical_target = target
+            num_categorical_targets += 1
+        else:
+            num_regression_targets += 1
+
+    if num_categorical_targets == 1:
+        if class_weights is None:
+            class_weights = generate_class_weights(
+                data, targets, categorical_target["name"]
+            )
+        sample_weights = generate_sample_weights_categorical(
+            labels, categorical_target["name"], class_weights
+        )
+
+    elif num_regression_targets == 1:
+        sample_weights = generate_sample_weights_numerical(
+            labels, targets[0]["name"]
+        )
+    else:
+        sample_weights = [1.0] * len(labels)
+
+    return sample_weights, class_weights
+
+
+def generate_class_weights(data, targets, categorical_feature=None):
+
+    classes = data[categorical_feature].unique()
+    counts = data[categorical_feature].value_counts()
+    num_samples = sum(counts)
+
+    class_weights = []
+    for c in classes:
+        if c != mask_value:
+            class_weights.append(
+                float(num_samples / (len(classes) * counts[c]))
+            )
+        else:
+            class_weights.append(1.0)
+    return class_weights
+
+
 def create_datasets(
     data: pd.DataFrame,
     targets: List[str],
@@ -831,61 +893,24 @@ def create_datasets(
     if len(train) == 0:
         train = data.copy()
 
-    train_features = train.copy()
+    train_features, train_labels = split_labels_features(train, targets)
 
-    train_labels = {}
-    for feature in targets:
-        if feature["name"] in train_features:
-            train_labels[feature["name"]] = train_features.pop(feature["name"])
-    train_labels = pd.DataFrame(train_labels)
-
-    num_categorical_targets = 0
-    categorical_target = None
-    for target in targets:
-        if target.type == "categorical":
-            categorical_target = target
-            num_categorical_targets += 1
-
-    if num_categorical_targets == 1:
-        classes = data[categorical_target["name"]].unique()
-        counts = data[categorical_target["name"]].value_counts()
-        num_samples = sum(counts)
-
-        class_weights = []
-        for c in classes:
-            if c != mask_value:
-                class_weights.append(float(num_samples / (2 * counts[c])))
-            else:
-                class_weights.append(1.0)
-
-        sample_weights = generate_sample_weights(
-            train_labels, categorical_target["name"], class_weights
-        )
-    else:
-        sample_weights = [1.0] * len(train_labels)
+    sample_weights, class_weights = generate_sample_weights(
+        train, train_labels, targets
+    )
 
     train_ds = df_to_dataset(train, targets=targets, weights=sample_weights)
 
     if len(test) > 0:
 
-        test_features = test.copy()
-        test_labels = {}
-        for feature in targets:
-            if feature["name"] in test_features:
-                test_labels[feature["name"]] = test_features.pop(
-                    feature["name"]
-                )
-        test_labels = pd.DataFrame(test_labels)
+        test_features, test_labels = split_labels_features(test, targets)
 
-        if num_categorical_targets == 1:
-            sample_weights_test = generate_sample_weights(
-                test_labels, categorical_target["name"], class_weights
-            )
-        else:
-            sample_weights_test = [1] * len(test_labels)
+        test_sample_weights, class_weights = generate_sample_weights(
+            test, test_labels, targets, class_weights=class_weights
+        )
 
         test_ds = df_to_dataset(
-            test, targets=targets, weights=sample_weights_test
+            test, targets=targets, weights=test_sample_weights
         )
 
         return (train_ds, test_ds)
