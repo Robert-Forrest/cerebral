@@ -28,6 +28,13 @@ units = {
 inverse_units = {}
 
 
+def get_units(feature):
+    if feature in units:
+        return units[feature]
+    else:
+        return ""
+
+
 def setup_units():
     global inverse_units
 
