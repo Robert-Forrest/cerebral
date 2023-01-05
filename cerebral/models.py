@@ -474,8 +474,6 @@ def fit(model, train_ds, test_ds=None, max_epochs=1000, early_stop=True):
                 monitor=monitor,
                 patience=early_stop_patience,
                 min_delta=min_delta,
-                mode="auto",
-                restore_best_weights=True,
             )
         )
 
