@@ -430,7 +430,13 @@ def plot_results_regression_heatmap(train_truth, train_predictions):
 
     i = 0
     for feature in train_truth[0]:
-        if feature != "GFA":
+        numeric_feature = True
+        for target in cb.conf.targets:
+            if target.name == feature:
+                if target["type"] != "numeric":
+                    numeric_feature = False
+
+        if numeric_feature:
 
             MAEs = []
             RMSEs = []
@@ -766,12 +772,17 @@ def plot_multiclass_roc(true, pred, feature_name, set_name):
 
     """
 
+    for target in cb.conf.targets:
+        if target["name"] == feature_name:
+            classes = target["classes"]
+            num_classes = len(target["classes"])
+
     fpr = dict()
     tpr = dict()
     thresholds = dict()
     roc_auc = dict()
 
-    for i in range(3):
+    for i in range(num_classes):
         classPred = []
         classTrue = []
         for j in range(len(pred)):
@@ -793,14 +804,11 @@ def plot_multiclass_roc(true, pred, feature_name, set_name):
     ax.set_aspect(aspect="equal")
     ax.set_xlabel("False Positive Rate")
     ax.set_ylabel("True Positive Rate")
-    for i in range(3):
+    for i in range(num_classes):
         ax.plot(
             fpr[i],
             tpr[i],
-            label=["Crystal", "Ribbon", "BMG"][i]
-            + " (area = "
-            + str(round(roc_auc[i], 3))
-            + ") ",
+            label=classes[i] + " (area = " + str(round(roc_auc[i], 3)) + ") ",
         )
     ax.legend(loc="best")
     plt.tight_layout()
