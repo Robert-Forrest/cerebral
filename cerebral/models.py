@@ -620,32 +620,26 @@ def calculate_classification_metrics(
     return metrics
 
 
-def evaluate_model(model, train_ds, test_ds=None):
-    """Evaluate the performance of a trained model by comparison to known data.
-
-    :group: models
-    """
-
-    metrics = {}
-
-    train_predictions = []
-
-    masked_train_truth = {}
-    masked_train_predictions = {}
+def subset_evaluation(
+    model,
+    ds,
+):
 
     prediction_names = [
         f["name"] for f in get_model_prediction_features(model)
     ]
 
     (
-        train_predictions,
-        train_truth,
-        train_compositions,
-    ) = extract_predictions_truths(model, train_ds, prediction_names)
+        predictions,
+        truth,
+        compositions,
+    ) = extract_predictions_truths(model, ds, prediction_names)
 
-    train_errors = calculate_prediction_errors(
-        train_truth, train_predictions, prediction_names
-    )
+    errors = calculate_prediction_errors(truth, predictions, prediction_names)
+
+    metrics = {}
+    masked_truth = {}
+    masked_predictions = {}
 
     for i, target_name in enumerate(prediction_names):
         target = None
@@ -655,78 +649,69 @@ def evaluate_model(model, train_ds, test_ds=None):
                 break
 
         (
-            masked_train_truth[target_name],
-            masked_train_predictions[target_name],
+            masked_truth[target_name],
+            masked_predictions[target_name],
         ) = cb.features.filter_masked(
-            train_truth[target_name], train_predictions[target_name]
+            truth[target_name], predictions[target_name]
         )
 
         metrics[target_name] = {}
         if target["type"] == "numerical":
-            metrics[target_name]["train"] = calculate_regression_metrics(
-                masked_train_truth[target_name],
-                masked_train_predictions[target_name],
+            metrics[target_name] = calculate_regression_metrics(
+                masked_truth[target_name],
+                masked_predictions[target_name],
             )
         else:
-            metrics[target_name]["train"] = calculate_classification_metrics(
-                masked_train_truth[target_name],
-                masked_train_predictions[target_name],
+            metrics[target_name] = calculate_classification_metrics(
+                masked_truth[target_name],
+                masked_predictions[target_name],
             )
 
-    test_predictions = None
-    test_truth = None
-    test_errors = None
-    test_compositions = None
+    if cb.conf.save:
+        cb.plots.write_errors(compositions, truth, predictions)
+
+    return (
+        metrics,
+        errors,
+        predictions,
+        truth,
+        compositions,
+    )
+
+
+def evaluate_model(model, train_ds, test_ds=None):
+    """Evaluate the performance of a trained model by comparison to known data.
+
+    :group: models
+    """
+
+    metrics = {}
+
+    (
+        train_metrics,
+        train_errors,
+        train_predictions,
+        train_truth,
+        train_compositions,
+    ) = subset_evaluation(model, train_ds)
+    for metric in train_metrics:
+        metrics[metric] = {"train": train_metrics[metric]}
 
     if test_ds:
-        masked_test_truth = {}
-        masked_test_predictions = {}
-
         (
+            test_metrics,
+            test_errors,
             test_predictions,
             test_truth,
             test_compositions,
-        ) = extract_predictions_truths(model, test_ds, prediction_names)
-
-        test_errors = calculate_prediction_errors(
-            test_truth, test_predictions, prediction_names
-        )
-
-        for i, target_name in enumerate(prediction_names):
-            target = None
-            for t in cb.conf.targets:
-                if t["name"] == target_name:
-                    target = t
-                    break
-
-            (
-                masked_test_truth[target_name],
-                masked_test_predictions[target_name],
-            ) = cb.features.filter_masked(
-                test_truth[target_name], test_predictions[target_name]
-            )
-
-            if target["type"] == "numerical":
-                metrics[target_name]["test"] = calculate_regression_metrics(
-                    masked_test_truth[target_name],
-                    masked_test_predictions[target_name],
-                )
-            else:
-                metrics[target_name][
-                    "test"
-                ] = calculate_classification_metrics(
-                    masked_test_truth[target_name],
-                    masked_test_predictions[target_name],
-                )
-
-    if cb.conf.save:
-        cb.plots.write_errors(
-            train_compositions, train_truth, train_predictions
-        )
-        if test_ds is not None:
-            cb.plots.write_errors(
-                test_compositions, test_truth, test_predictions, suffix="test"
-            )
+        ) = subset_evaluation(model, test_ds)
+        for metric in test_metrics:
+            metrics[metric]["test"] = test_metrics[metric]
+    else:
+        test_truth = None
+        test_predictions = None
+        test_compositions = None
+        test_errors = None
 
     if cb.conf.plot.model:
 
