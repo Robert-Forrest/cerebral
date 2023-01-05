@@ -32,8 +32,8 @@ def tprPerClass(y_true, y_pred, class_index=0):
 
     mask = K.cast(K.not_equal(true, cb.features.mask_value), "int64")
 
-    pp = K.cast(K.equal(pred, class_index), "int64") * mask
-    p = K.cast(K.equal(true, class_index), "int64")
+    pp = K.cast(K.equal(pred, K.cast(class_index, "int64")), "int64") * mask
+    p = K.cast(K.equal(true, K.cast(class_index, "float64")), "int64")
     tp = K.dot(K.reshape(pp, (1, -1)), K.reshape(p, (-1, 1)))
 
     return K.cast(K.sum(tp), "float64") / (
@@ -47,11 +47,7 @@ def truePositiveRate(y_true, y_pred):
     :group: metrics
     """
 
-    return (
-        tprPerClass(y_true, y_pred, 0)
-        + tprPerClass(y_true, y_pred, 1)
-        + tprPerClass(y_true, y_pred, 2)
-    ) / 3
+    return per_class_average(y_true, y_pred, tprPerClass)
 
 
 def ppvPerClass(y_true, y_pred, class_index=0):
@@ -70,8 +66,8 @@ def ppvPerClass(y_true, y_pred, class_index=0):
 
     mask = K.cast(K.not_equal(true, cb.features.mask_value), "int64")
 
-    pp = K.cast(K.equal(pred, class_index), "int64") * mask
-    p = K.cast(K.equal(true, class_index), "int64")
+    pp = K.cast(K.equal(pred, K.cast(class_index, "int64")), "int64") * mask
+    p = K.cast(K.equal(true, K.cast(class_index, "float64")), "int64")
     tp = K.dot(K.reshape(pp, (1, -1)), K.reshape(p, (-1, 1)))
 
     return K.cast(K.sum(tp), "float64") / (
@@ -85,11 +81,7 @@ def positivePredictiveValue(y_true, y_pred):
     :group: metrics
     """
 
-    return (
-        ppvPerClass(y_true, y_pred, 0)
-        + ppvPerClass(y_true, y_pred, 1)
-        + ppvPerClass(y_true, y_pred, 2)
-    ) / 3
+    return per_class_average(y_true, y_pred, ppvPerClass)
 
 
 def f1(y_true, y_pred):
@@ -123,8 +115,10 @@ def tnrPerClass(y_true, y_pred, class_index=0):
 
     mask = K.cast(K.not_equal(true, cb.features.mask_value), "int64")
 
-    pn = K.cast(K.not_equal(pred, class_index), "int64") * mask
-    n = K.cast(K.not_equal(true, class_index), "int64")
+    pn = (
+        K.cast(K.not_equal(pred, K.cast(class_index, "int64")), "int64") * mask
+    )
+    n = K.cast(K.not_equal(true, K.cast(class_index, "float64")), "int64")
     tn = K.dot(K.reshape(pn, (1, -1)), K.reshape(n, (-1, 1)))
 
     return K.cast(K.sum(tn), "float64") / (
@@ -138,11 +132,7 @@ def trueNegativeRate(y_true, y_pred):
     :group: metrics
     """
 
-    return (
-        tnrPerClass(y_true, y_pred, 0)
-        + tnrPerClass(y_true, y_pred, 1)
-        + tnrPerClass(y_true, y_pred, 2)
-    ) / 3
+    return per_class_average(y_true, y_pred, tnrPerClass)
 
 
 def calc_trueNegativeRate(true, prediction):
@@ -172,8 +162,10 @@ def npvPerClass(y_true, y_pred, class_index=0):
 
     mask = K.cast(K.not_equal(true, cb.features.mask_value), "int64")
 
-    pn = K.cast(K.not_equal(pred, class_index), "int64") * mask
-    n = K.cast(K.not_equal(true, class_index), "int64")
+    pn = (
+        K.cast(K.not_equal(pred, K.cast(class_index, "int64")), "int64") * mask
+    )
+    n = K.cast(K.not_equal(true, K.cast(class_index, "float64")), "int64")
     tn = K.dot(K.reshape(pn, (1, -1)), K.reshape(n, (-1, 1)))
 
     return K.cast(K.sum(tn), "float64") / (
@@ -181,17 +173,28 @@ def npvPerClass(y_true, y_pred, class_index=0):
     )
 
 
+def per_class_average(y_true, y_pred, per_class_func):
+    i = tf.constant(0)
+    num_classes = tf.constant(2)
+    value = tf.constant(0.0, dtype="float64")
+
+    i, value = tf.while_loop(
+        lambda i, value: i < num_classes,
+        lambda i, value: (
+            tf.add(i, 1),
+            value + per_class_func(y_true, y_pred, i),
+        ),
+        (i, value),
+    )
+    return value / K.cast(num_classes, "float64")
+
+
 def negativePredictiveValue(y_true, y_pred):
     """Calculate the overall negative predictive value, ignoring masked values.
 
     :group: metrics
     """
-
-    return (
-        npvPerClass(y_true, y_pred, 0)
-        + npvPerClass(y_true, y_pred, 1)
-        + npvPerClass(y_true, y_pred, 2)
-    ) / 3
+    return per_class_average(y_true, y_pred, npvPerClass)
 
 
 def informedness(y_true, y_pred):
