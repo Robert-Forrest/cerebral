@@ -104,8 +104,12 @@ def write_errors(compositions, labels, predictions, suffix=None):
                         )
                     else:
                         error = (
-                            np.argmax(predictions[target["name"]][j])
-                            == labels[target["name"]][j]
+                            "correct"
+                            if (
+                                np.argmax(predictions[target["name"]][j])
+                                == labels[target["name"]][j]
+                            )
+                            else "incorrect"
                         )
 
                 else:
