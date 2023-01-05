@@ -163,7 +163,7 @@ def build_feature_branch(
             if ensemble_size > 1:
                 ensemble.append(
                     tf.keras.layers.Dense(
-                        3,
+                        len(feature.classes),
                         activation="softmax",
                         name=feature.name + "_" + str(m),
                     )(x)
@@ -171,7 +171,9 @@ def build_feature_branch(
             else:
                 ensemble.append(
                     tf.keras.layers.Dense(
-                        3, activation="softmax", name=feature.name
+                        len(feature.classes),
+                        activation="softmax",
+                        name=feature.name,
                     )(x)
                 )
         else:
