@@ -551,8 +551,7 @@ def calculate_prediction_errors(
         else:
             for j in range(len(predictions[feature])):
                 if (truth[feature][j] != cb.features.mask_value) and (
-                    np.argmax(predictions[feature][j])
-                    != truth[target["name"]][j]
+                    np.argmax(predictions[feature][j]) != truth[feature][j]
                 ):
                     errors[feature].append(True)
                 else:
