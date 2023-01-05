@@ -50,6 +50,24 @@ def truePositiveRate(y_true, y_pred):
     return per_class_average(y_true, y_pred, tprPerClass)
 
 
+def falsePositiveRate(y_true, y_pred):
+    """Calculate the false positive rate, ignoring masked values.
+
+    :group: metrics
+    """
+
+    return 1 - trueNegativeRate(y_true, y_pred)
+
+
+def falseNegativeRate(y_true, y_pred):
+    """Calculate the false negative rate, ignoring masked values.
+
+    :group: metrics
+    """
+
+    return 1 - truePositiveRate(y_true, y_pred)
+
+
 def ppvPerClass(y_true, y_pred, class_index=0):
     """Calculate the per-class positive predictive value, ignoring masked values.
 
@@ -265,6 +283,60 @@ def balancedAccuracy(y_true, y_pred) -> float:
     )
 
 
+def positiveLikelihood(y_true, y_pred) -> float:
+    """Calculate the positive likelihood, ignoring masked values.
+
+    :group: metrics
+    """
+
+    return truePositiveRate(y_true, y_pred) / falsePositiveRate(y_true, y_pred)
+
+
+def negativeLikelihood(y_true, y_pred) -> float:
+    """Calculate the negative likelihood, ignoring masked values.
+
+    :group: metrics
+    """
+
+    return falseNegativeRate(y_true, y_pred) / trueNegativeRate(y_true, y_pred)
+
+
+def diagnosticOdds(y_true, y_pred) -> float:
+    """Calculate the diagnostic odds, ignoring masked values.
+
+    :group: metrics
+    """
+
+    return positiveLikelihood(y_true, y_pred) / negativeLikelihood(
+        y_true, y_pred
+    )
+
+
+def fowlkesMallows(y_true, y_pred) -> float:
+    """Calculate the Fowlkes-Mallows index, ignoring masked values.
+
+    :group: metrics
+    """
+
+    return K.sqrt(
+        positivePredictiveValue(y_true, y_pred)
+        * truePositiveRate(y_true, y_pred)
+    )
+
+
+def jaccard(y_true, y_pred) -> float:
+    """Calculate the Jaccard index, ignoring masked values.
+
+    :group: metrics
+    """
+
+    tp = truePositiveRate(y_true, y_pred)
+    fn = falseNegativeRate(y_true, y_pred)
+    fp = falsePositiveRate(y_true, y_pred)
+
+    return tp / (tp + fn + fp + K.epsilon())
+
+
 def calc_R_sq(true, prediction) -> float:
     """Calculate the R-squared score.
 
@@ -346,9 +418,9 @@ def calc_recall(true, prediction) -> float:
         for p in prediction:
             predictionMax.append(np.argmax(p))
 
-        return recall_score(true, predictionMax, average="macro")
+        return recall_score(true, predictionMax, average="micro")
     else:
-        return recall_score(true, prediction, average="macro")
+        return recall_score(true, prediction, average="micro")
 
 
 def calc_precision(true, prediction) -> float:

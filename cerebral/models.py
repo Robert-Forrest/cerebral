@@ -45,6 +45,8 @@ def setup_losses_and_metrics():
                 cb.metrics.accuracy,
                 cb.metrics.truePositiveRate,
                 cb.metrics.trueNegativeRate,
+                cb.metrics.falsePositiveRate,
+                cb.metrics.falseNegativeRate,
                 cb.metrics.positivePredictiveValue,
                 cb.metrics.negativePredictiveValue,
                 cb.metrics.balancedAccuracy,
@@ -52,6 +54,11 @@ def setup_losses_and_metrics():
                 cb.metrics.informedness,
                 cb.metrics.markedness,
                 cb.metrics.matthewsCorrelation,
+                cb.metrics.positiveLikelihood,
+                cb.metrics.negativeLikelihood,
+                cb.metrics.diagnosticOdds,
+                cb.metrics.fowlkesMallows,
+                cb.metrics.jaccard,
             ]
             losses[
                 feature.name
@@ -313,6 +320,8 @@ def load(path):
             "accuracy": cb.metrics.accuracy,
             "truePositiveRate": cb.metrics.truePositiveRate,
             "trueNegativeRate": cb.metrics.trueNegativeRate,
+            "falsePositiveRate": cb.metrics.falsePositiveRate,
+            "falseNegativeRate": cb.metrics.falseNegativeRate,
             "positivePredictiveValue": cb.metrics.positivePredictiveValue,
             "negativePredictiveValue": cb.metrics.negativePredictiveValue,
             "balancedAccuracy": cb.metrics.balancedAccuracy,
@@ -320,6 +329,11 @@ def load(path):
             "informedness": cb.metrics.informedness,
             "markedness": cb.metrics.markedness,
             "matthewsCorrelation": cb.metrics.matthewsCorrelation,
+            "positiveLikelihood": cb.metrics.positiveLikelihood,
+            "negativeLikelihood": cb.metrics.negativeLikelihood,
+            "diagnosticOdds": cb.metrics.diagnosticOdds,
+            "fowlkesMallows": cb.metrics.fowlkesMallows,
+            "jaccard": cb.metrics.jaccard,
             "masked_MSE": cb.loss.masked_MSE,
             "masked_MAE": cb.loss.masked_MAE,
             "masked_Huber": cb.loss.masked_Huber,
@@ -605,9 +619,19 @@ def calculate_classification_metrics(
     metrics["accuracy"] = cb.metrics.calc_accuracy(truth, predictions)
     metrics["recall"] = cb.metrics.calc_recall(truth, predictions)
     metrics["precision"] = cb.metrics.calc_precision(truth, predictions)
-    metrics["trueNegativeRate"] = cb.metrics.calc_trueNegativeRate(
+    metrics["trueNegativeRate"] = cb.metrics.trueNegativeRate(
         truth, predictions
     ).numpy()
+    metrics["truePositiveRate"] = cb.metrics.trueNegativeRate(
+        truth, predictions
+    ).numpy()
+    metrics["falseNegativeRate"] = cb.metrics.falseNegativeRate(
+        truth, predictions
+    ).numpy()
+    metrics["falsePositiveRate"] = cb.metrics.falsePositiveRate(
+        truth, predictions
+    ).numpy()
+
     metrics["f1"] = cb.metrics.calc_f1(truth, predictions)
     metrics["informedness"] = cb.metrics.informedness(
         truth, predictions
@@ -616,14 +640,24 @@ def calculate_classification_metrics(
     metrics["matthewsCorrelation"] = cb.metrics.matthewsCorrelation(
         truth, predictions
     ).numpy()
+    metrics["positiveLikelihood"] = cb.metrics.positiveLikelihood(
+        truth, predictions
+    ).numpy()
+    metrics["negativeLikelihood"] = cb.metrics.negativeLikelihood(
+        truth, predictions
+    ).numpy()
+    metrics["diagnosticOdds"] = cb.metrics.diagnosticOdds(
+        truth, predictions
+    ).numpy()
+    metrics["fowlkesMallows"] = cb.metrics.fowlkesMallows(
+        truth, predictions
+    ).numpy()
+    metrics["jaccard"] = cb.metrics.jaccard(truth, predictions).numpy()
 
     return metrics
 
 
-def subset_evaluation(
-    model,
-    ds,
-):
+def subset_evaluation(model, ds, set_name="train"):
 
     prediction_names = [
         f["name"] for f in get_model_prediction_features(model)
