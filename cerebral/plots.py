@@ -274,21 +274,18 @@ def plot_results_regression(
                 )
             )
 
-        plt.xlabel(
-            "True "
-            + cb.features.prettyName(target_name)
-            + " ("
-            + cb.features.units[target_name]
-            + ")"
-        )
+        xlabel = "True " + cb.features.prettyName(target_name)
+        ylabel = "Predicted " + cb.features.prettyName(target_name)
 
-        plt.ylabel(
-            "Predicted "
-            + cb.features.prettyName(target_name)
-            + " ("
-            + cb.features.units[target_name]
-            + ")"
-        )
+        if target_name in cb.features.units:
+            xlabel += " ("
+            +cb.features.get_units(target_name)
+            +")"
+            ylabel += " ("
+            +cb.features.get_units(target_name)
+            +")"
+        plt.xlabel(xlabel)
+        plt.ylabel(ylabel)
 
         adjust_text_avoid_objects = []
 
@@ -300,11 +297,11 @@ def plot_results_regression(
                 + "\nRMSE: "
                 + str(round(metrics[target_name]["train"]["RMSE"], 3))
                 + " "
-                + cb.features.units[target_name]
+                + cb.features.get_units(target_name)
                 + "\nMAE: "
                 + str(round(metrics[target_name]["train"]["MAE"], 3))
                 + " "
-                + cb.features.units[target_name]
+                + cb.features.get_units(target_name)
             )
 
             if test_truth is not None:
@@ -315,13 +312,13 @@ def plot_results_regression(
                     + ", Test: "
                     + str(round(metrics[target_name]["test"]["R_sq"], 3))
                     + "\nRMSE ("
-                    + cb.features.units[target_name]
+                    + cb.features.get_units(target_name)
                     + "): Train: "
                     + str(round(metrics[target_name]["train"]["RMSE"], 3))
                     + ", Test: "
                     + str(round(metrics[target_name]["test"]["RMSE"], 3))
                     + "\nMAE ("
-                    + cb.features.units[target_name]
+                    + cb.features.get_units(target_name)
                     + "): Train: "
                     + str(round(metrics[target_name]["train"]["MAE"], 3))
                     + ", Test: "
@@ -398,7 +395,7 @@ def plot_results_regression(
         plt.xlabel(
             cb.features.prettyName(target_name)
             + " prediction error ("
-            + cb.features.units[target_name]
+            + cb.features.get_units(target_name)
             + ")"
         )
 
@@ -501,7 +498,7 @@ def plot_results_regression_heatmap(train_truth, train_predictions):
                 + " "
                 + str(round(np.std(RMSEs), 3))
                 + " "
-                + cb.features.units[feature]
+                + cb.features.get_units(feature)
                 + "\nMAE: "
                 + str(round(np.mean(MAEs), 3))
                 + " "
@@ -509,7 +506,7 @@ def plot_results_regression_heatmap(train_truth, train_predictions):
                 + " "
                 + str(round(np.std(MAEs), 3))
                 + " "
-                + cb.features.units[feature]
+                + cb.features.get_units(feature)
             )
             ob = mpl.offsetbox.AnchoredText(description_str, loc="upper left")
             ob.patch.set_boxstyle("round,pad=0.,rounding_size=0.2")
@@ -519,14 +516,14 @@ def plot_results_regression_heatmap(train_truth, train_predictions):
                 "True "
                 + cb.features.prettyName(feature)
                 + " ("
-                + cb.features.units[feature]
+                + cb.features.get_units(feature)
                 + ")"
             )
             plt.ylabel(
                 "Predicted "
                 + cb.features.prettyName(feature)
                 + " ("
-                + cb.features.units[feature]
+                + cb.features.get_units(feature)
                 + ")"
             )
 
@@ -885,7 +882,7 @@ def plot_distributions(data):
 
         label = cb.features.prettyName(feature)
         if feature in cb.features.units:
-            label += " (" + cb.features.units[feature] + ")"
+            label += " (" + cb.features.get_units(feature) + ")"
 
         plt.xlabel(label)
         # plt.gca().xaxis.grid(True)
@@ -1205,7 +1202,7 @@ def plot_feature_permutation(data):
                 "Increase in "
                 + cb.features.prettyName(target.name)
                 + " Mean Absolute Error ("
-                + cb.features.units[target.name]
+                + cb.features.get_units(target.name)
                 + ")"
             )
 
@@ -1242,7 +1239,7 @@ def plot_feature_permutation(data):
                 "Increase in "
                 + cb.features.prettyName(target.name)
                 + " Mean Absolute Error ("
-                + cb.features.units[target.name]
+                + cb.features.get_units(target.name)
                 + ")"
             )
 
