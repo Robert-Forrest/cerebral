@@ -684,7 +684,7 @@ def plot_results_classification(
 
                     ax.text(
                         1.55,
-                        1.05 - c * 0.35,
+                        1.05 - c * (1.05 / len(classes)),
                         "\nAccuracy: "
                         + str(round(accuracy, 3))
                         + "\nRecall: "
