@@ -702,7 +702,9 @@ def subset_evaluation(model, ds, set_name="train"):
             )
 
     if cb.conf.save:
-        cb.plots.write_errors(compositions, truth, predictions)
+        cb.plots.write_errors(
+            compositions, truth, predictions, suffix=set_name
+        )
 
     return (
         metrics,
@@ -727,7 +729,7 @@ def evaluate_model(model, train_ds, test_ds=None):
         train_predictions,
         train_truth,
         train_compositions,
-    ) = subset_evaluation(model, train_ds)
+    ) = subset_evaluation(model, train_ds, "train")
     for metric in train_metrics:
         metrics[metric] = {"train": train_metrics[metric]}
 
@@ -738,7 +740,7 @@ def evaluate_model(model, train_ds, test_ds=None):
             test_predictions,
             test_truth,
             test_compositions,
-        ) = subset_evaluation(model, test_ds)
+        ) = subset_evaluation(model, test_ds, "test")
         for metric in test_metrics:
             metrics[metric]["test"] = test_metrics[metric]
     else:
