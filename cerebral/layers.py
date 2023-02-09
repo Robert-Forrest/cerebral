@@ -4,7 +4,7 @@ import tensorflow as tf
 
 
 def dense(
-    units, activation, regularizer="l2", regularizer_rate=0.001, max_norm=3
+    units, activation, regularizer=None, regularizer_rate=None, max_norm=None
 ):
     """Helper function which creates a dense layer.
 
@@ -30,13 +30,21 @@ def dense(
         regularizer = tf.keras.regularizers.l2(regularizer_rate)
     elif regularizer == "l1l2":
         regularizer = tf.keras.regularizers.L1L2(regularizer_rate)
+    else:
+        regularizer = None
 
     return tf.keras.layers.Dense(
         units,
         activation=activation,
-        # activity_regularizer=regularizer,
         kernel_regularizer=regularizer,
-        # bias_regularizer=regularizer,
-        kernel_constraint=tf.keras.constraints.max_norm(max_norm),
-        bias_constraint=tf.keras.constraints.max_norm(max_norm),
+        kernel_constraint=(
+            tf.keras.constraints.max_norm(max_norm)
+            if max_norm is not None
+            else None
+        ),
+        bias_constraint=(
+            tf.keras.constraints.max_norm(max_norm)
+            if max_norm is not None
+            else None
+        ),
     )
