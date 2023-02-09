@@ -1,8 +1,8 @@
 """Module providing feature processing functionality."""
 
 from collections.abc import Iterable
-from typing import List, Optional, Tuple, Union, Callable
 from numbers import Number
+from typing import Callable, List, Optional, Tuple, Union
 
 import metallurgy as mg
 import numpy as np
@@ -48,7 +48,13 @@ def setup_units():
 
 def load_data(
     datafiles: Optional[list] = None,
+    targets: List[dict] = [],
+    input_features: List[str] = [],
     drop_correlated_features: bool = True,
+    drop_na: bool = True,
+    merge_duplicates: bool = True,
+    required_features: Optional[List[str]] = None,
+    ignore_columns: List[str] = [],
     model=None,
     postprocess: Callable = None,
     save_csv: bool = False,
@@ -104,13 +110,30 @@ def load_data(
             )
     data = pd.concat(data, ignore_index=True)
 
+    for column in ignore_columns:
+        if column in data:
+            data = data.drop(columns=[column])
+
+    if model is not None:
+        drop_correlated_features = False
+        (
+            input_features,
+            targets,
+        ) = get_features_from_model(model)
+
+    if len(input_features) == 0:
+        input_features = mg.get_all_properties()
+        input_features.remove("price")
+
     data, targets, input_features = calculate_features(
         data,
+        targets=targets,
+        input_features=input_features,
         drop_correlated_features=drop_correlated_features,
-        model=model,
+        drop_na=drop_na,
+        merge_duplicates=merge_duplicates,
+        required_features=required_features,
     )
-
-    data = data.fillna(cb.features.mask_value)
 
     if postprocess is not None:
         data = postprocess(data, targets, input_features)
@@ -180,12 +203,24 @@ def prettyName(feature_name: str) -> str:
 
     name = ""
     featureParts = feature_name.split("_")
-    if "linearmix" in feature_name or "deviation" in feature_name:
+    if (
+        "linearmix" in feature_name
+        or "deviation" in feature_name
+        or "range" in feature_name
+        or "maximum" in feature_name
+        or "minimum" in feature_name
+    ):
         if len(featureParts) > 1:
             if featureParts[-1] == "linearmix":
                 name = r"$\Sigma$ "
             elif featureParts[-1] == "deviation":
                 name = r"$\delta$ "
+            elif featureParts[-1] == "range":
+                name = "Range "
+            elif featureParts[-1] == "maximum":
+                name = "Max "
+            elif featureParts[-1] == "minimum":
+                name = "Min "
         name += " ".join(word.title() for word in featureParts[0:-1])
     else:
         name += " ".join(word.title() for word in featureParts)
@@ -194,10 +229,12 @@ def prettyName(feature_name: str) -> str:
 
 def calculate_features(
     data: pd.DataFrame,
+    input_features: List[str] = [],
+    targets: List[dict] = [],
     drop_correlated_features: bool = True,
     required_features: List[str] = [],
     merge_duplicates: bool = True,
-    model: Optional = None,
+    drop_na: bool = True,
 ):
     """Calculates features for a data set of alloy compositions.
 
@@ -245,19 +282,12 @@ def calculate_features(
         data["composition"] = alloys
 
     data = drop_invalid_compositions(data)
+    target_names = [target["name"] for target in targets]
 
-    if model is not None:
-        drop_correlated_features = False
-        (
-            input_features,
-            targets,
-        ) = get_features_from_model(model)
-        target_names = [target["name"] for target in targets]
-
-    else:
-        input_features = cb.conf.input_features
-        targets = cb.conf.targets
-        target_names = cb.conf.target_names
+    for i, row in data.iterrows():
+        if row["composition"].structure is not None:
+            input_features.append("structure")
+            break
 
     data = drop_unwanted_inputs(data, input_features, target_names)
 
@@ -267,23 +297,34 @@ def calculate_features(
             if feature in input_features:
                 continue
 
-            if "_linearmix" in feature:
-                actual_feature = feature.split("_linearmix")[0]
-                if actual_feature not in input_features:
-                    input_features.append(actual_feature)
+            found_feature = False
+            for feature_suffix in [
+                "_linearmix",
+                "_deviation",
+                "_range",
+                "_minimum",
+                "_maximum",
+            ]:
+                if feature_suffix in feature:
+                    found_feature = True
+                    actual_feature = feature.split(feature_suffix)[0]
+                    if actual_feature not in input_features:
+                        input_features.append(actual_feature)
+                    break
 
-            elif "_deviation" in feature:
-                actual_feature = feature.split("_deviation")[0]
-                if actual_feature not in input_features:
-                    input_features.append(actual_feature)
-            else:
+            if not found_feature:
                 input_features.append(feature)
 
     original_input_features = input_features[:]
     input_features = []
 
     for feature in original_input_features:
-        if "_linearmix" in feature:
+        if (
+            "_linearmix" in feature
+            or "_range" in feature
+            or "_maximum" in feature
+            or "minimum" in feature
+        ):
             input_features.append(feature)
         elif "_deviation" in feature:
             input_features.append(feature)
@@ -299,13 +340,46 @@ def calculate_features(
         elif (
             mg.get_property_function(feature) is None
             and "_percentage" not in feature
+            and "structure" not in feature
         ):
             input_features.append(feature + "_linearmix")
             input_features.append(feature + "_deviation")
+            input_features.append(feature + "_range")
+            input_features.append(feature + "_maximum")
+            input_features.append(feature + "_minimum")
 
             units[feature + "_deviation"] = "%"
         else:
             input_features.append(feature)
+
+    input_feature_values = {}
+    for feature in input_features:
+        if feature == "structure":
+            input_feature_values[feature] = [
+                alloy.structure.name if alloy.structure is not None else -1
+                for i, alloy in data["composition"].items()
+            ]
+        elif "_percentage" in feature:
+            input_feature_values[feature] = []
+            element = feature.split("_percentage")[0]
+            for i, row in data.iterrows():
+                if element in row["composition"].composition:
+                    input_feature_values[feature].append(
+                        row["composition"].composition[element]
+                    )
+                else:
+                    input_feature_values[feature].append(0)
+
+        else:
+            input_feature_values[feature] = mg.calculate(
+                data["composition"], feature
+            )
+
+    data = pd.concat(
+        [data, pd.DataFrame.from_dict(input_feature_values)],
+        axis=1,
+    )
+    data = data.loc[:, ~data.columns.duplicated()]
 
     for column in data:
         if column == "composition":
@@ -322,50 +396,41 @@ def calculate_features(
                 for i in range(len(targets)):
                     if targets[i]["name"] == column:
                         targets[i]["classes"] = classes
+                        if hasattr(cb.conf, "targets"):
+                            cb.conf.targets[i]["classes"] = classes
 
             data[column] = (
                 data[column]
                 .map({classes[i]: i for i in range(len(classes))})
-                .fillna(mask_value)
                 .astype(np.int64)
             )
 
+    for target in target_names:
+        data[target] = data[target].fillna(mask_value)
+
+    if drop_correlated_features:
+        for column in data.columns:
+            nan_percent = data[column].isna().sum() / len(data)
+            if nan_percent > 0.2:
+                data = data.drop(columns=[column])
+
+    if drop_na:
+        data = data.dropna()
+
     if merge_duplicates:
         data = merge_duplicate_compositions(data, targets, target_names)
-
-    input_feature_values = {}
-    for feature in input_features:
-        if "_percentage" not in feature:
-            input_feature_values[feature] = mg.calculate(
-                data["composition"], feature
-            )
-        else:
-            input_feature_values[feature] = []
-            element = feature.split("_percentage")[0]
-            for i, row in data.iterrows():
-                if element in row["composition"].composition:
-                    input_feature_values[feature].append(
-                        row["composition"].composition[element]
-                    )
-                else:
-                    input_feature_values[feature].append(0)
-
-    data = pd.concat(
-        [data, pd.DataFrame.from_dict(input_feature_values)],
-        axis=1,
-    )
-
-    data = data.fillna(mask_value)
-
-    if cb.conf.get("plot", False) and cb.conf.plot.get("features", False):
-        cb.plots.plot_correlation(data)
-        cb.plots.plot_feature_variation(data)
 
     if drop_correlated_features:
         data = drop_static_features(data, target_names, required_features)
         data = remove_correlated_features(
             data, target_names, required_features
         )
+
+    if cb.conf.get("plot", False) and cb.conf.plot.get("features", False):
+        cb.plots.plot_correlation(data)
+        cb.plots.plot_feature_variation(data)
+        # cb.plots.map_data(data)
+        cb.plots.plot_distributions(data)
 
     return data, targets, input_features
 
@@ -442,6 +507,10 @@ def remove_correlated_features(data, target_names, required_features):
 
     correlation = np.array(data.corr())
 
+    correlation_threshold = 0.8
+    if hasattr(cb.conf, "train"):
+        correlation_threshold = cb.conf.train.get("correlation_threshold", 0.8)
+
     correlated_dropped_features = []
     for i in range(len(correlation) - 1):
         if (
@@ -458,9 +527,7 @@ def remove_correlated_features(data, target_names, required_features):
                     and data.columns[j] not in required_features
                     and data.columns[j] != "composition"
                 ):
-                    if np.abs(correlation[i][j]) >= cb.conf.train.get(
-                        "correlation_threshold", 0.8
-                    ):
+                    if np.abs(correlation[i][j]) >= correlation_threshold:
 
                         if sum(np.abs(correlation[i])) < sum(
                             np.abs(correlation[j])
@@ -840,10 +907,20 @@ def generate_sample_weights(data, labels, targets, class_weights=None):
             labels, categorical_target["name"], class_weights
         )
 
-    elif num_regression_targets == 1:
-        sample_weights = generate_sample_weights_numerical(
-            labels, targets[0]["name"]
+        max_weight = max(sample_weights)
+        min_weight = min(
+            [np.abs(min(i for i in sample_weights if np.abs(i) > 0)), 1e-4]
         )
+        sample_weights = [
+            float(i) / max_weight if i > 0 else min_weight
+            for i in sample_weights
+        ]
+
+    # elif num_regression_targets == 1:
+    #     sample_weights = [1.0] * len(labels)
+    #     # sample_weights = generate_sample_weights_numerical(
+    #     #     labels, targets[0]["name"]
+    #     # )
     else:
         sample_weights = [1.0] * len(labels)
 
