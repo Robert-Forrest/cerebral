@@ -2,19 +2,16 @@
 
 import os
 
+import matplotlib as mpl
+import matplotlib.pyplot as plt
 import metallurgy as mg
-from sklearn.metrics import (
-    ConfusionMatrixDisplay,
-    confusion_matrix,
-    roc_curve,
-    auc,
-)
 import numpy as np
+import seaborn as sns
 from adjustText import adjust_text
 from scipy.cluster import hierarchy
-import seaborn as sns
-import matplotlib.pyplot as plt
-import matplotlib as mpl
+from sklearn.manifold import TSNE
+from sklearn.metrics import (ConfusionMatrixDisplay, auc, confusion_matrix,
+                             roc_curve)
 
 import cerebral as cb
 
@@ -682,9 +679,11 @@ def plot_results_classification(
                     markednesses.append(markedness)
                     matthewsCorrelations.append(matthewsCorrelation)
 
+                    y_baseline = 0.95
+                    text_height = y_baseline / len(classes)
                     ax.text(
                         1.55,
-                        1.05 - c * (1.05 / len(classes)),
+                        y_baseline - c * text_height,
                         "\nAccuracy: "
                         + str(round(accuracy, 3))
                         + "\nRecall: "
@@ -843,70 +842,61 @@ def plot_distributions(data):
         if feature == "composition" or feature not in cb.conf.target_names:
             continue
 
-        ax1 = plt.subplot(311)
-
-        crystalData = cb.features.filter_masked(
-            data[data["GFA"] == 0][feature]
-        )
-        bins = "auto"
-        if len(crystalData) == 0:
-            bins = 1
-
-        plt.hist(crystalData, bins=bins, color="b")
-        plt.setp(ax1.get_xticklabels(), visible=False)
-        ax1.set(yticklabels=[])
-        ax1.tick_params(left=False)
-        ax1.set_title("Crystals")
-
-        ribbonData = cb.features.filter_masked(data[data["GFA"] == 1][feature])
-        bins = "auto"
-        if len(ribbonData) == 0:
-            bins = 1
-        ax2 = plt.subplot(312, sharex=ax1)
-        plt.hist(ribbonData, bins=bins, color="r")
-        plt.setp(ax2.get_xticklabels(), visible=False)
-        ax2.set(yticklabels=[])
-        ax2.tick_params(left=False)
-        ax2.set_title("Ribbons")
-
-        bmgData = cb.features.filter_masked(data[data["GFA"] == 2][feature])
-        bins = "auto"
-        if len(bmgData) == 0:
-            bins = 1
-        ax3 = plt.subplot(313, sharex=ax1)
-        plt.hist(bmgData, bins=bins, color="g")
-        plt.setp(ax3.get_xticklabels())
-        ax3.set(yticklabels=[])
-        ax3.tick_params(left=False)
-        ax3.set_title("BMGs")
-
-        #        ax4 = plt.subplot(414, sharex=ax1)
-        #        plt.hist(filter_masked(data[data['GFA'] == cb.features.mask_value]
-        #                               [feature]), bins="auto", color="c")
-        # plt.setp(ax4.get_xticklabels())
-        #        ax4.set(yticklabels=[])
-        #        ax4.tick_params(left=False)
-        #        ax4.set_title('Unknown')
-
         label = cb.features.prettyName(feature)
         if feature in cb.features.units:
             label += " (" + cb.features.get_units(feature) + ")"
 
-        plt.xlabel(label)
-        # plt.gca().xaxis.grid(True)
+        for target in cb.conf.targets:
+            if target["type"] == "categorical":
 
-        plt.tight_layout()
+                axes = {}
+                for c in target["classes"]:
 
-        if cb.conf.save:
-            plt.savefig(
-                cb.conf.output_directory + "distributions/" + feature + ".png"
-            )
-        else:
-            plt.show()
+                    subplot_location = (
+                        len(target["classes"]),
+                        1,
+                        1 + len(axes),
+                    )
 
-        plt.cla()
-        plt.clf()
-        plt.close()
+                    if len(axes) == 0:
+                        axes[c] = plt.subplot(*subplot_location)
+                    else:
+                        axes[c] = plt.subplot(
+                            *subplot_location,
+                            sharex=axes[target["classes"][0]]
+                        )
+
+                    class_data = cb.features.filter_masked(
+                        data[data[target["name"]] == 0][feature]
+                    )
+                    bins = "auto"
+                    if len(class_data) == 0:
+                        bins = 1
+
+                    plt.hist(class_data, bins=bins, color="b")
+                    if len(axes) == len(target["classes"]):
+                        plt.setp(axes[c].get_xticklabels(), visible=False)
+                    axes[c].set(yticklabels=[])
+                    axes[c].tick_params(left=False)
+                    axes[c].set_title(c)
+
+                plt.xlabel(label)
+
+                plt.tight_layout()
+
+                if cb.conf.save:
+                    plt.savefig(
+                        cb.conf.output_directory
+                        + "distributions/"
+                        + feature
+                        + ".png"
+                    )
+                else:
+                    plt.show()
+
+                plt.cla()
+                plt.clf()
+                plt.close()
 
         plt.hist(cb.features.filter_masked(data[feature]), bins=25)
         plt.xlabel(label)
@@ -1270,3 +1260,44 @@ def plot_feature_permutation(data):
         plt.clf()
         plt.cla()
         plt.close()
+
+
+def map_data(data):
+
+    embedding_data = data.drop(
+        ["composition"] + [t["name"] for t in cb.conf.targets], axis="columns"
+    )
+
+    tsne = TSNE(
+        n_components=2, perplexity=30  # , init="pca", learning_rate="auto"
+    )
+    tsne_results = tsne.fit_transform(embedding_data)
+    embedding_data["tsne-2d-one"] = tsne_results[:, 0]
+    embedding_data["tsne-2d-two"] = tsne_results[:, 1]
+
+    fig, ax = plt.subplots(1)
+    sns.scatterplot(
+        x="tsne-2d-one",
+        y="tsne-2d-two",
+        hue="label",
+        data=embedding_data,
+        legend="full",
+        alpha=0.6,
+        ax=ax,
+        s=15,
+    )
+    lim = (tsne_results.min() - 5, tsne_results.max() + 5)
+    ax.set_xlim(lim)
+    ax.set_ylim(lim)
+    ax.set_aspect("equal")
+    ax.legend(bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.0)
+
+    ax.xaxis.set_major_formatter(mpl.ticker.NullFormatter())
+    ax.yaxis.set_major_formatter(mpl.ticker.NullFormatter())
+    ax.set_xlabel("")
+    ax.set_ylabel("")
+
+    plt.savefig("map.png")
+    plt.clf()
+    plt.cla()
+    plt.close()
