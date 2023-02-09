@@ -838,11 +838,17 @@ def predict(model, alloys, uncertainty=False):
     :group: models
     """
 
-    data, targets, input_features = cb.features.calculate_features(
+    (
+        input_features,
+        targets,
+    ) = cb.features.get_features_from_model(model)
+
+    data, _targets, _input_features = cb.features.calculate_features(
         alloys,
-        model=model,
+        input_features=input_features,
         merge_duplicates=False,
         drop_correlated_features=False,
+        drop_na=False,
     )
 
     data.pop("composition")
