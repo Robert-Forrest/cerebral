@@ -2,19 +2,16 @@
 
 import os
 
+import matplotlib as mpl
+import matplotlib.pyplot as plt
 import metallurgy as mg
-from sklearn.metrics import (
-    ConfusionMatrixDisplay,
-    confusion_matrix,
-    roc_curve,
-    auc,
-)
 import numpy as np
+import seaborn as sns
 from adjustText import adjust_text
 from scipy.cluster import hierarchy
-import seaborn as sns
-import matplotlib.pyplot as plt
-import matplotlib as mpl
+from sklearn.manifold import TSNE
+from sklearn.metrics import (ConfusionMatrixDisplay, auc, confusion_matrix,
+                             roc_curve)
 
 import cerebral as cb
 
@@ -1263,3 +1260,44 @@ def plot_feature_permutation(data):
         plt.clf()
         plt.cla()
         plt.close()
+
+
+def map_data(data):
+
+    embedding_data = data.drop(
+        ["composition"] + [t["name"] for t in cb.conf.targets], axis="columns"
+    )
+
+    tsne = TSNE(
+        n_components=2, perplexity=30  # , init="pca", learning_rate="auto"
+    )
+    tsne_results = tsne.fit_transform(embedding_data)
+    embedding_data["tsne-2d-one"] = tsne_results[:, 0]
+    embedding_data["tsne-2d-two"] = tsne_results[:, 1]
+
+    fig, ax = plt.subplots(1)
+    sns.scatterplot(
+        x="tsne-2d-one",
+        y="tsne-2d-two",
+        hue="label",
+        data=embedding_data,
+        legend="full",
+        alpha=0.6,
+        ax=ax,
+        s=15,
+    )
+    lim = (tsne_results.min() - 5, tsne_results.max() + 5)
+    ax.set_xlim(lim)
+    ax.set_ylim(lim)
+    ax.set_aspect("equal")
+    ax.legend(bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.0)
+
+    ax.xaxis.set_major_formatter(mpl.ticker.NullFormatter())
+    ax.yaxis.set_major_formatter(mpl.ticker.NullFormatter())
+    ax.set_xlabel("")
+    ax.set_ylabel("")
+
+    plt.savefig("map.png")
+    plt.clf()
+    plt.cla()
+    plt.close()
